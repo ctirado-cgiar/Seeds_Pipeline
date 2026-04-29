@@ -130,7 +130,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 - **Key parameters:** `GUARDAR_CHESSBOARD_CORNERS` (bool)
 
 <!-- IMAGE: example checkerboard corner detection result -->
-<!-- ![01 - Checkerboard corners](docs/images/01_checkerboard_corners.jpg) -->
+![01 - Checkerboard corners](docs/images/01_checkerboard_corners.jpg)
 
 ---
 
