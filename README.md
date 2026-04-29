@@ -9,8 +9,6 @@ Alliance Bioversity International and CIAT — Bean Breeding Program, Palmira, C
 
 Seeds_Pipeline is a modular Python-based image processing pipeline for the morphometric, colorimetric, and shape-based characterisation of *Phaseolus* seeds from images captured with the Phenobox system. It extracts over 37 quantitative descriptors per seed, computes pairwise similarity distances, and performs unsupervised hierarchical clustering to support genotype comparison and breeding decisions.
 
-The pipeline is operated through a graphical orchestrator (`00_orquestador_pipeline.py`) that handles all interactive steps at startup and then runs autonomously from end to end without further user intervention.
-
 ---
 
 ## Pipeline overview
