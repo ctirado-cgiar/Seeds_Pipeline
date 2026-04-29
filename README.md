@@ -9,6 +9,8 @@ Alliance Bioversity International and CIAT — Bean Breeding Program, Palmira, C
 
 Seeds_Pipeline is a modular Python-based image processing pipeline for the morphometric, colorimetric, and shape-based characterisation of *Phaseolus* seeds from images captured with the Phenobox system. It extracts over 37 quantitative descriptors per seed, computes pairwise similarity distances, and performs unsupervised hierarchical clustering to support genotype comparison and breeding decisions.
 
+Each script is run manually in the numbered order shown below.
+
 ---
 
 ## Pipeline overview
@@ -22,8 +24,8 @@ Images (Phenobox)
 03 → 04   Colorimetric correction (colour card)
        │
   05        Scale calibration
-  06        AOI crop          ← handled by orchestrator at startup
-  07        Mask exclusion    ← handled by orchestrator after step 04
+  06        AOI crop
+  07        Mask exclusion
        │
   08 → 09   Morphometric analysis (37 descriptors + Haralick texture)
        │
@@ -104,32 +106,16 @@ All scripts read this variable to locate input and output folders.
 
 ## Running the pipeline
 
-Launch the orchestrator:
+Run each script manually in numbered order from the `scripts/` folder:
 
 ```bash
-python scripts/00_orquestador_pipeline.py
+python scripts/01_ObtenerParametros_Ajedrez.py
+python scripts/02_DistorcionCorrection_Ajedrez.py
+python scripts/03_ObtenerMascara_ColorCard.py
+# ... and so on through script 16
 ```
 
-### Startup wizard (interactive — ~2 minutes)
-
-At launch, a setup window appears where you:
-
-1. Select the trial folder (`RUTA`)
-2. Adjust key parameters
-3. Enable or disable pipeline steps
-4. **Scale factor** — click two points on the reference image and enter the real distance in mm. Saved automatically to `calibracionCamara/factorEscala/factor_escala.json`
-5. Check whether to activate **AOI crop** and/or **exclusion mask** (defined later on corrected images)
-
-Press **▶ Iniciar Pipeline** — the wizard closes and the pipeline starts automatically.
-
-### Mid-run pause (AOI and mask — ~30 seconds)
-
-After steps 01–04 complete, the pipeline pauses and shows a dialog with the first corrected image from `colorCorrejidas/`. If AOI and/or mask were activated:
-
-- Draw the region of interest rectangle
-- Draw the exclusion mask rectangle (e.g. to cover the colour card)
-
-Confirm → the pipeline applies the selections to the entire image batch and continues autonomously to the end.
+Each script reads its inputs from the folders produced by the previous step and writes its outputs to the corresponding subfolder inside the trial folder.
 
 ---
 
@@ -137,62 +123,222 @@ Confirm → the pipeline applies the selections to the entire image batch and co
 
 ### Geometric correction
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `01_ObtenerParametros_Ajedrez.py` | `calibracionCamara/ajedrez/*.jpg` | `calibracionCamara/parametrosCorreccion/calibracion_params.npz` | `GUARDAR_CHESSBOARD_CORNERS` (bool) |
-| `02_DistorcionCorrection_Ajedrez.py` | `all/*.jpg` | `noDistorcion/` | — |
+#### `01_ObtenerParametros_Ajedrez.py`
+
+- **Input:** `calibracionCamara/ajedrez/*.jpg`
+- **Output:** `calibracionCamara/parametrosCorreccion/calibracion_params.npz`
+- **Key parameters:** `GUARDAR_CHESSBOARD_CORNERS` (bool)
+
+<!-- IMAGE: example checkerboard corner detection result -->
+<!-- ![01 - Checkerboard corners](docs/images/01_checkerboard_corners.png) -->
+
+---
+
+#### `02_DistorcionCorrection_Ajedrez.py`
+
+- **Input:** `all/*.jpg`
+- **Output:** `noDistorcion/`
+
+<!-- IMAGE: before/after geometric correction comparison -->
+<!-- ![02 - Geometric correction](docs/images/02_geometric_correction.png) -->
+
+---
 
 ### Colorimetric correction
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `03_ObtenerMascara_ColorCard.py` | `calibracionCamara/colorCard/colorCard.jpg` | `calibracionCamara/colorCard/colorCard_mask.png` | `RADIUS` (patch detection radius, default 6); `POS` (card orientation: 1, 2 or 3, default 3) |
-| `04_ColorCorrection_ByMask copy.py` | `noDistorcion/` + `colorCard_mask.png` | `colorCorrejidas/` | — |
+#### `03_ObtenerMascara_ColorCard.py`
+
+- **Input:** `calibracionCamara/colorCard/colorCard.jpg`
+- **Output:** `calibracionCamara/colorCard/colorCard_mask.png`
+- **Key parameters:** `RADIUS` (patch detection radius, default 6); `POS` (card orientation: 1, 2 or 3, default 3)
+
+<!-- IMAGE: detected colour card patches with mask overlay -->
+<!-- ![03 - Colour card mask](docs/images/03_colorcard_mask.png) -->
+
+---
+
+#### `04_ColorCorrection_ByMask.py`
+
+- **Input:** `noDistorcion/` + `colorCard_mask.png`
+- **Output:** `colorCorrejidas/`
+
+<!-- IMAGE: before/after colorimetric correction comparison -->
+<!-- ![04 - Colour correction](docs/images/04_color_correction.png) -->
+
+---
 
 ### Scale, AOI and mask
 
-| Script | Input | Output | Notes |
-|---|---|---|---|
-| `05_ConocerEscalas.py` | Reference image | `calibracionCamara/factorEscala/factor_escala.json` | Handled interactively by orchestrator |
-| `06_CutImagesApp.py` | `colorCorrejidas/` | `areaInteres/` | Handled by orchestrator after step 04 |
-| `07_ApplyMaskApp.py` | `areaInteres/` or `colorCorrejidas/` | same folder (in-place) | Handled by orchestrator after step 04 |
+#### `05_ConocerEscalas.py`
+
+- **Input:** Reference image
+- **Output:** `calibracionCamara/factorEscala/factor_escala.json`
+- **Notes:** Run interactively — click two points on the reference image and enter the real distance in mm.
+
+<!-- IMAGE: scale calibration interface with measurement points -->
+<!-- ![05 - Scale calibration](docs/images/05_scale_calibration.png) -->
+
+---
+
+#### `06_CutImagesApp.py`
+
+- **Input:** `colorCorrejidas/`
+- **Output:** `areaInteres/`
+- **Notes:** Run interactively — draw the region of interest rectangle on the first corrected image; the crop is applied to the entire batch.
+
+<!-- IMAGE: AOI selection rectangle on a corrected image -->
+<!-- ![06 - AOI crop](docs/images/06_aoi_crop.png) -->
+
+---
+
+#### `07_ApplyMaskApp.py`
+
+- **Input:** `areaInteres/` or `colorCorrejidas/`
+- **Output:** same folder (in-place)
+- **Notes:** Run interactively — draw the exclusion mask rectangle (e.g. to cover the colour card).
+
+<!-- IMAGE: exclusion mask applied over the colour card area -->
+<!-- ![07 - Exclusion mask](docs/images/07_exclusion_mask.png) -->
+
+---
 
 ### Morphometric analysis
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `08_analisisMorfometria.py` | `areaInteres/` | `Morfometria/metricasCompletas.csv`; `Binarizadas/`; `Segmentadas/`; `Resultados/` | `THRESHOLD` (Cr channel, default 127); `AREA_MIN` (200 px²); `AREA_MAX` (12000 px²); `ANCHO_MIN/MAX`; `LARGO_MIN/MAX` |
-| `09_summarizeMorfometria.py` | `Morfometria/metricasCompletas.csv` | `Morfometria/metricasCompletas_summary.csv` | — |
+#### `08_analisisMorfometria.py`
+
+- **Input:** `areaInteres/`
+- **Output:** `Morfometria/metricasCompletas.csv`; `Binarizadas/`; `Segmentadas/`; `Resultados/`
+- **Key parameters:** `THRESHOLD` (Cr channel, default 127); `AREA_MIN` (200 px²); `AREA_MAX` (12000 px²); `ANCHO_MIN/MAX`; `LARGO_MIN/MAX`
+
+<!-- IMAGE: segmented seeds with labelled morphometric measurements -->
+<!-- ![08 - Morphometric segmentation](docs/images/08_morphometria.png) -->
+
+---
+
+#### `09_summarizeMorfometria.py`
+
+- **Input:** `Morfometria/metricasCompletas.csv`
+- **Output:** `Morfometria/metricasCompletas_summary.csv`
+
+<!-- IMAGE: summary table or boxplot of morphometric descriptors per genotype -->
+<!-- ![09 - Morphometry summary](docs/images/09_morphometria_summary.png) -->
+
+---
 
 ### Colorimetric analysis
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `10.0_extraerColor_Kmeans.py` | `Segmentadas/` | `Colorimetria/analisis_colores.csv` | `N_COLORS` (K dominant colours, default 2); `EROSION_ITERATIONS` (default 3); `KERNEL_SIZE` (default 7) |
-| `10.1_colorDistance.py` | `Colorimetria/analisis_colores.csv` | `colorDistance/distance_matrix_emd.csv`; heatmap and dendrogram PNG | EMD computed in RGB space |
+#### `10.0_extraerColor_Kmeans.py`
+
+- **Input:** `Segmentadas/`
+- **Output:** `Colorimetria/analisis_colores.csv`
+- **Key parameters:** `N_COLORS` (K dominant colours, default 2); `EROSION_ITERATIONS` (default 3); `KERNEL_SIZE` (default 7)
+
+<!-- IMAGE: seed images with K-means dominant colour swatches -->
+<!-- ![10.0 - K-means colour extraction](docs/images/10_0_kmeans_colors.png) -->
+
+---
+
+#### `10.1_colorDistance.py`
+
+- **Input:** `Colorimetria/analisis_colores.csv`
+- **Output:** `colorDistance/distance_matrix_emd.csv`; heatmap and dendrogram PNG
+- **Notes:** EMD computed in RGB space.
+
+<!-- IMAGE: colour distance heatmap and dendrogram -->
+<!-- ![10.1 - Colour distance heatmap](docs/images/10_1_color_distance.png) -->
+
+---
 
 ### Shape analysis
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `11.0_filtrarBinarizadas.py` | `Binarizadas/` | `binarizadasFiltradas/` | `AREA_MIN_F`; `AREA_MAX_F`; `ANCHO_MIN_F/MAX_F`; `LARGO_MIN_F/MAX_F` |
-| `11.1_alinearFormas.py` | `binarizadasFiltradas/` | `binarizadasAlineadas/` | `GRID_COLS` (visualisation grid columns, default 8) |
-| `11.2_formaPromedio.py` | `binarizadasAlineadas/` | `formaPromedio/efa_coefficients_all_images.csv`; PNG visualisations | `N_HARMONICS` (EFA harmonics, default 20); `N_POINTS` (contour points, default 128); `MIN_SOLIDITY` (default 0.90); `MIN_CIRCULARITY` (default 0.55) |
+#### `11.0_filtrarBinarizadas.py`
+
+- **Input:** `Binarizadas/`
+- **Output:** `binarizadasFiltradas/`
+- **Key parameters:** `AREA_MIN_F`; `AREA_MAX_F`; `ANCHO_MIN_F/MAX_F`; `LARGO_MIN_F/MAX_F`
+
+<!-- IMAGE: grid of filtered binary seed masks -->
+<!-- ![11.0 - Filtered binary masks](docs/images/11_0_filtered_masks.png) -->
+
+---
+
+#### `11.1_alinearFormas.py`
+
+- **Input:** `binarizadasFiltradas/`
+- **Output:** `binarizadasAlineadas/`
+- **Key parameters:** `GRID_COLS` (visualisation grid columns, default 8)
+
+<!-- IMAGE: grid of GPA-aligned seed contours -->
+<!-- ![11.1 - Aligned shapes](docs/images/11_1_aligned_shapes.png) -->
+
+---
+
+#### `11.2_formaPromedio.py`
+
+- **Input:** `binarizadasAlineadas/`
+- **Output:** `formaPromedio/efa_coefficients_all_images.csv`; PNG visualisations
+- **Key parameters:** `N_HARMONICS` (EFA harmonics, default 20); `N_POINTS` (contour points, default 128); `MIN_SOLIDITY` (default 0.90); `MIN_CIRCULARITY` (default 0.55)
+
+<!-- IMAGE: mean seed shape reconstructed from EFA coefficients -->
+<!-- ![11.2 - Mean EFA shape](docs/images/11_2_efa_mean_shape.png) -->
+
+---
 
 ### Distances, clustering and integration
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `12_formasDistance.py` | `formaPromedio/efa_coefficients_all_images.csv` + morphometry summary | `formasDistance/shapes_distance_matrix.csv`; heatmap and dendrogram PNG | — |
-| `13_linkage2json.py` | colour and shape distance matrices | `dendrogramas/dendrogram_color.json`; `dendrogram_shapes.json` | `LINKAGE_METHOD` (default `'average'`) |
-| `14_clusterFormasFormayMorfometríaIntegradaIntegrada.py` | EFA coefficients + morphometry summary | `clusterIntegrado/` (PCA plots, cluster assignments) | `MAX_CLUSTERS` (default 6); `N_COMPONENTS` (max PCA components, default 10) |
+#### `12_formasDistance.py`
+
+- **Input:** `formaPromedio/efa_coefficients_all_images.csv` + morphometry summary
+- **Output:** `formasDistance/shapes_distance_matrix.csv`; heatmap and dendrogram PNG
+
+<!-- IMAGE: shape distance heatmap and dendrogram -->
+<!-- ![12 - Shape distance heatmap](docs/images/12_shape_distance.png) -->
+
+---
+
+#### `13_linkage2json.py`
+
+- **Input:** colour and shape distance matrices
+- **Output:** `dendrogramas/dendrogram_color.json`; `dendrogram_shapes.json`
+- **Key parameters:** `LINKAGE_METHOD` (default `'average'`)
+
+<!-- IMAGE: D3.js interactive dendrogram screenshot (colour and shape) -->
+<!-- ![13 - Dendrograms JSON](docs/images/13_dendrograms.png) -->
+
+---
+
+#### `14_clusterFormasFormayMorfometríaIntegradaIntegrada.py`
+
+- **Input:** EFA coefficients + morphometry summary
+- **Output:** `clusterIntegrado/` (PCA plots, cluster assignments)
+- **Key parameters:** `MAX_CLUSTERS` (default 6); `N_COMPONENTS` (max PCA components, default 10)
+
+<!-- IMAGE: PCA biplot with Ward cluster assignments coloured by genotype -->
+<!-- ![14 - Integrated PCA clustering](docs/images/14_pca_cluster.png) -->
+
+---
 
 ### Seed counting and field book merge
 
-| Script | Input | Output | Key parameters |
-|---|---|---|---|
-| `15_contadorSemillas.py` | `areaInteres/` | `conteo/reporte_YYYYMMDD_HHMMSS.csv` | `THRESHOLD_VAL` (Cr channel, default 125); `MIN_DISTANCE` (px between seeds, default 10); `PEAK_THRESHOLD` (Watershed fraction, default 0.20) |
-| `16_unirDatosconLibroCampo.py` | morphometry + colour + shape + conteo CSVs + `libroCampo/libroCampo.csv` | `resultadosUnidos/metricasCompletasSemillas_*.csv` | Key normalisation: `in_row=1224.jpg` → `1224`; `_2`/`-2` suffixes treated as photo replicates |
+#### `15_contadorSemillas.py`
+
+- **Input:** `areaInteres/`
+- **Output:** `conteo/reporte_YYYYMMDD_HHMMSS.csv`
+- **Key parameters:** `THRESHOLD_VAL` (Cr channel, default 125); `MIN_DISTANCE` (px between seeds, default 10); `PEAK_THRESHOLD` (Watershed fraction, default 0.20)
+
+<!-- IMAGE: Watershed seed count result with labelled seed centroids -->
+<!-- ![15 - Seed counter](docs/images/15_seed_count.png) -->
+
+---
+
+#### `16_unirDatosconLibroCampo.py`
+
+- **Input:** morphometry + colour + shape + conteo CSVs + `libroCampo/libroCampo.csv`
+- **Output:** `resultadosUnidos/metricasCompletasSemillas_*.csv`
+- **Notes:** Key normalisation: `in_row=1224.jpg` → `1224`; `_2`/`-2` suffixes treated as photo replicates.
+
+<!-- IMAGE: screenshot of the final merged output table -->
+<!-- ![16 - Final merged table](docs/images/16_merged_output.png) -->
 
 ---
 
@@ -271,12 +417,15 @@ If you use this pipeline in your research, please cite:
 
 Relevant methodological references:
 
-- Zhang, Z. (2000). A flexible new technique for camera calibration. *IEEE TPAMI*, 22(11), 1330–1334.
-- Berry et al. (2018). An automated, high-throughput method for standardizing image color profiles. *PeerJ*, 6:e5727.
-- Kuhl & Giardina (1982). Elliptic Fourier features of a closed contour. *CGIP*, 18(3), 236–258.
-- Haralick et al. (1973). Textural features for image classification. *IEEE Trans. SMC*, 3(6), 610–621.
-- Rubner et al. (2000). The Earth Mover's Distance as a metric for image retrieval. *IJCV*, 40(2), 99–121.
-- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. *JASA*, 58(301), 236–244.
+- Berry, J. C., Fahlgren, N., Pokorny, A. A., Bart, R. S., & Veley, K. M. (2018). An automated, high-throughput method for standardizing image color profiles to improve image-based plant phenotyping. *PeerJ*, 6, e5727. https://doi.org/10.7717/peerj.5727
+- Dayrell, R. L. C., Ott, T., Horrocks, T., & Poschlod, P. (2023). Automated extraction of seed morphological traits from images. *Methods in Ecology and Evolution*, 14(7), 1708–1718. https://doi.org/10.1111/2041-210X.14127
+- Kim, B.-H. (2024). Leveraging image analysis for high-throughput phenotyping of legume plants. *Legume Research — An International Journal*. https://doi.org/10.18805/LRF-806
+- Liu, F., Yang, R., Chen, R., Lamine Guindo, M., He, Y., Zhou, J., Lu, X., Chen, M., Yang, Y., & Kong, W. (2024). Digital techniques and trends for seed phenotyping using optical sensors. *Journal of Advanced Research*, 63, 1–16. https://doi.org/10.1016/j.jare.2023.11.010
+- Morales, M. A., Worral, H., Piche, L., Adeniyi, A. S., Dariva, F., Ramos, C., Hoang, K., Yan, C., Flores, P., & Bandillo, N. (2024). *High-throughput phenotyping of seed quality traits using imaging and deep learning in dry pea* (p. 2024.03.05.583564). bioRxiv. https://doi.org/10.1101/2024.03.05.583564
+- Rubner, Y., Tomasi, C., & Guibas, L. J. (2000). The Earth Mover's Distance as a metric for image retrieval. *International Journal of Computer Vision*, 40(2), 99–121. https://doi.org/10.1023/A:1026543900054
+- Varga, F., Vidak, M., Ivanović, K., Lazarević, B., Širić, I., Srečec, S., Šatović, Z., & Carović-Stanko, K. (2019). How does computer vision compare to standard colorimeter in assessing the seed coat color of common bean (*Phaseolus vulgaris* L.)? *Journal of Central European Agriculture*, 20(4), 1169–1178. https://doi.org/10.5513/JCEA01/20.4.2509
+- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. *Journal of the American Statistical Association*, 58(301), 236–244. https://doi.org/10.1080/01621459.1963.10500845
+- Zhang, Z. (2000). A flexible new technique for camera calibration. *IEEE Transactions on Pattern Analysis and Machine Intelligence*. https://doi.org/10.1109/34.888718
 
 ---
 
