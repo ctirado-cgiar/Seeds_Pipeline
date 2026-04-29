@@ -1,0 +1,13 @@
+Pillow
+python-dotenv
+matplotlib
+numpy
+opencv-python
+pandas
+scikit-image
+scikit-learn
+scipy
+seaborn
+plantcv==4.6
+altair==5.3.0
+

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color & Shape Distance Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500;600&family=Source+Serif+4:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f5f0; --panel:#fff; --panel2:#fafaf8;
+    --border:#d4d4cc; --border-dark:#b8b8b0;
+    --accent:#2b6cb0; --accent-light:#ebf4ff;
+    --accent2:#276749; --accent2-light:#f0fff4;
+    --warn:#c05621; --warn-light:#fffaf0;
+    --highlight:#e53e3e; --clade:#d69e2e;
+    --text:#1a1a1a; --text-mid:#4a4a4a; --text-dim:#767676; --text-xdim:#a0a0a0;
+    --mono:'Source Code Pro','Consolas',monospace;
+    --serif:'Source Serif 4','Georgia',serif;
+    --radius:3px; --shadow:0 1px 3px rgba(0,0,0,0.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--serif);font-size:14px;line-height:1.6;}
+
+  /* topbar */
+  .topbar{background:#2d3748;color:#e2e8f0;display:flex;align-items:center;height:36px;border-bottom:2px solid #1a202c;position:sticky;top:0;z-index:200;}
+  .topbar-brand{padding:0 18px;font-family:var(--mono);font-size:12px;font-weight:600;color:#fff;border-right:1px solid #4a5568;height:100%;display:flex;align-items:center;gap:8px;background:#1a202c;}
+  .topbar-brand .dot-r{color:#fc8181;font-size:16px;}
+  .topbar-menu{display:flex;height:100%;position:relative;}
+  .menu-item{position:relative;height:100%;}
+  .menu-item>span{padding:0 14px;font-family:var(--mono);font-size:11px;color:#a0aec0;display:flex;align-items:center;height:100%;border-right:1px solid #3d4a5c;cursor:pointer;transition:background 0.1s;user-select:none;}
+  .menu-item>span:hover,.menu-item.open>span{background:#3d4a5c;color:#e2e8f0;}
+  .dropdown{display:none;position:absolute;top:36px;left:0;background:#2d3748;border:1px solid #4a5568;border-top:none;min-width:180px;z-index:300;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+  .menu-item.open .dropdown{display:block;}
+  .dropdown-item{padding:8px 16px;font-family:var(--mono);font-size:11px;color:#a0aec0;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background 0.1s;}
+  .dropdown-item:hover{background:#3d4a5c;color:#e2e8f0;}
+  .dropdown-item.disabled{opacity:0.4;cursor:default;pointer-events:none;}
+  .dropdown-sep{border-top:1px solid #4a5568;margin:4px 0;}
+
+  /* layout */
+  .layout{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 36px);}
+  .sidebar{background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;}
+  .sidebar-section{border-bottom:1px solid var(--border);}
+  .sidebar-section-title{padding:10px 14px 8px;font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);background:var(--panel2);border-bottom:1px solid var(--border);}
+  .sidebar-body{padding:14px;}
+
+  /* upload */
+  .upload-panel{border:1px dashed var(--border-dark);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;position:relative;transition:border-color 0.15s,background 0.15s;background:var(--bg);margin-bottom:8px;}
+  .upload-panel:hover,.upload-panel.drag{border-color:var(--accent);background:var(--accent-light);}
+  .upload-panel.loaded{border-style:solid;border-color:var(--accent2);background:var(--accent2-light);}
+  .upload-panel.loaded-shapes{border-style:solid;border-color:var(--warn);background:var(--warn-light);}
+  .upload-panel.loaded-dendro{border-style:solid;border-color:#6b46c1;background:#faf5ff;}
+  .upload-panel.loaded-dendro-shape{border-style:solid;border-color:#b7791f;background:#fffbeb;}
+  .upload-panel input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  .upload-icon{font-size:18px;margin-bottom:3px;}
+  .upload-label{font-family:var(--mono);font-size:10px;color:var(--text-dim);line-height:1.4;}
+  .upload-label strong{display:block;color:var(--text-mid);font-size:11px;margin-bottom:2px;}
+  .upload-panel.loaded .upload-label,.upload-panel.loaded .upload-label strong{color:var(--accent2);}
+  .upload-panel.loaded-shapes .upload-label,.upload-panel.loaded-shapes .upload-label strong{color:var(--warn);}
+  .upload-panel.loaded-dendro .upload-label,.upload-panel.loaded-dendro .upload-label strong{color:#6b46c1;}
+  .upload-panel.loaded-dendro-shape .upload-label,.upload-panel.loaded-dendro-shape .upload-label strong{color:#b7791f;}
+
+  /* toggle */
+  .toggle-row{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;transition:background 0.1s;border-top:1px solid var(--border);}
+  .toggle-row:hover{background:var(--accent-light);}
+  .toggle-switch{width:32px;height:16px;background:var(--border-dark);border-radius:8px;position:relative;transition:background 0.2s;flex-shrink:0;}
+  .toggle-switch.on{background:var(--accent);}
+  .toggle-switch::after{content:'';position:absolute;width:12px;height:12px;background:white;border-radius:50%;top:2px;left:2px;transition:left 0.2s;box-shadow:0 1px 2px rgba(0,0,0,0.2);}
+  .toggle-switch.on::after{left:18px;}
+  .toggle-label{font-family:var(--mono);font-size:11px;color:var(--text-mid);}
+
+  /* stats */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;}
+  .stat-box .val{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent);line-height:1.2;}
+  .stat-box .val.shapes{color:var(--warn);}
+  .stat-box .lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-xdim);margin-top:2px;}
+
+  /* controls */
+  .ctrl-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:4px;display:block;}
+  .ctrl-input{width:100%;font-family:var(--mono);font-size:12px;padding:7px 10px;border:1px solid var(--border-dark);border-radius:var(--radius);background:var(--panel);color:var(--text);outline:none;transition:border-color 0.15s,box-shadow 0.15s;margin-bottom:10px;}
+  .ctrl-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(43,108,176,0.15);}
+  .ctrl-select{width:100%;font-family:var(--mono);font-size:12px;padding:6px 10px;border:1px solid var(--border-dark);border-radius:var(--radius);background:var(--panel);color:var(--text);outline:none;cursor:pointer;margin-bottom:10px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23767676'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+  .btn-run{width:100%;background:var(--accent);color:white;border:none;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:0.05em;padding:8px 14px;border-radius:var(--radius);cursor:pointer;transition:background 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .btn-run:hover{background:#2558a0;}
+  .btn-clear{width:100%;background:transparent;color:var(--text-dim);border:1px solid var(--border-dark);font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:var(--radius);cursor:pointer;margin-top:6px;transition:all 0.15s;}
+  .btn-clear:hover{background:var(--bg);color:var(--text-mid);}
+
+  /* sort pair */
+  .sort-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+  .sort-opt{background:var(--bg);border:1px solid var(--border-dark);color:var(--text-mid);font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:var(--radius);cursor:pointer;text-align:center;transition:all 0.15s;user-select:none;}
+  .sort-opt:hover{border-color:var(--accent);color:var(--accent);}
+  .sort-opt.active{background:var(--accent);color:white;border-color:var(--accent);font-weight:600;}
+
+  /* main */
+  .main-col{display:flex;flex-direction:column;min-width:0;}
+  .main-header{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  .main-title{font-family:var(--serif);font-size:16px;font-weight:600;}
+  .main-subtitle{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .badge-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:2px;border:1px solid;}
+  .badge-color{background:var(--accent-light);color:var(--accent);border-color:#bee3f8;}
+  .badge-shape{background:var(--warn-light);color:var(--warn);border-color:#fbd38d;}
+  .badge-none{background:var(--bg);color:var(--text-xdim);border-color:var(--border);}
+  .main-content{padding:20px 24px;overflow-y:auto;flex:1;}
+
+  /* dual panels */
+  .search-meta{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .search-meta strong{color:var(--accent);}
+  .dual-results{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  .dual-results.single{grid-template-columns:1fr;}
+  .result-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+  .result-panel-header{padding:10px 16px 9px;border-bottom:3px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+  .result-panel-header.color-header{border-bottom-color:var(--accent);}
+  .result-panel-header.shape-header{border-bottom-color:var(--warn);}
+  .result-panel-title{font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;gap:7px;}
+  .panel-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .panel-dot-color{background:var(--accent);}
+  .panel-dot-shape{background:var(--warn);}
+  .result-panel-meta{font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+  .panel-table-wrap{overflow-x:auto;}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{background:#f0f0eb;padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);border-bottom:2px solid var(--border-dark);white-space:nowrap;}
+  tbody tr{border-bottom:1px solid #ebebea;transition:background 0.08s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:nth-child(even){background:#fafaf8;}
+  tbody tr:hover{background:var(--accent-light);}
+  td{padding:8px 12px;font-family:var(--mono);font-size:11px;vertical-align:middle;}
+  .td-rank{color:var(--text-xdim);width:28px;text-align:right;font-size:10px;}
+  .td-rank.r1{color:var(--accent);font-weight:700;}
+  .td-rank.r2{color:#4299e1;}
+  .td-rank.r3{color:#63b3ed;}
+  .td-rank.r1s{color:var(--warn);font-weight:700;}
+  .td-rank.r2s{color:#dd6b20;}
+  .td-rank.r3s{color:#ed8936;}
+  .td-query{color:var(--accent);font-weight:600;}
+  .td-query-shape{color:var(--warn);font-weight:600;}
+  mark{background:#fef3c7;color:#92400e;border-radius:2px;padding:0 2px;}
+  .dist-wrap{display:flex;align-items:center;gap:8px;}
+  .dist-num{font-family:var(--mono);font-size:11px;font-weight:600;min-width:46px;text-align:right;white-space:nowrap;}
+  .bar-bg{flex:1;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;min-width:36px;}
+  .bar-fill{height:100%;border-radius:4px;}
+  .sec-dist{font-family:var(--mono);font-size:10px;color:var(--text-dim);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+  .sec-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .no-shape-notice{background:var(--warn-light);border:1px dashed #fbd38d;border-radius:var(--radius);padding:14px;font-family:var(--mono);font-size:11px;color:var(--warn);text-align:center;}
+
+  /* dendrogram */
+  .dendro-view{padding:24px;overflow:auto;flex:1;}
+  .dendro-header{margin-bottom:16px;}
+  .dendro-title{font-family:var(--serif);font-size:15px;font-weight:600;}
+  .dendro-legend{display:flex;gap:16px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);flex-wrap:wrap;margin-top:8px;}
+  .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;}
+  .dendro-panels{display:grid;gap:24px;}
+  .dendro-panels.two-col{grid-template-columns:1fr 1fr;}
+  .dendro-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);overflow:auto;}
+  .dendro-panel-title{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  .dendro-no-data{text-align:center;padding:40px;font-family:var(--mono);font-size:12px;color:var(--text-xdim);}
+  .dendro-svg .link{fill:none;stroke:#c8c8c0;stroke-width:1.2px;}
+  .dendro-svg .link.clade{stroke:var(--clade);stroke-width:2px;}
+  .dendro-svg .leaf-text{font-family:var(--mono);font-size:10px;fill:var(--text-mid);}
+  .dendro-svg .leaf-text.highlighted{fill:var(--highlight);font-weight:700;font-size:11px;}
+  .dendro-svg .leaf-text.in-clade{fill:var(--clade);font-weight:600;}
+  .dendro-svg .leaf-circle{fill:var(--border-dark);}
+  .dendro-svg .leaf-circle.highlighted{fill:var(--highlight);}
+  .dendro-svg .leaf-circle.in-clade{fill:var(--clade);}
+  .dendro-svg .axis text{font-family:var(--mono);font-size:9px;fill:var(--text-dim);}
+  .dendro-svg .axis line,.dendro-svg .axis path{stroke:var(--border-dark);}
+
+  /* empty */
+  .empty-state{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:60px 24px;text-align:center;box-shadow:var(--shadow);}
+  .empty-icon{font-size:36px;margin-bottom:12px;opacity:0.4;}
+  .empty-title{font-family:var(--serif);font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px;}
+  .empty-sub{font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+
+  /* console */
+  .console-bar{position:fixed;bottom:0;left:0;right:0;background:#2d3748;color:#68d391;font-family:var(--mono);font-size:11px;padding:4px 16px;border-top:1px solid #1a202c;display:flex;align-items:center;gap:8px;z-index:99;}
+  .console-bar .prompt{color:#a0aec0;}
+  body{padding-bottom:28px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand"><span class="dot-r">●</span> Distance Explorer</div>
+  <div class="topbar-menu">
+    <div class="menu-item" id="menu-file">
+      <span onclick="toggleMenu('file')">File ▾</span>
+      <div class="dropdown">
+        <div class="dropdown-item" onclick="closeMenus()">📂 &nbsp;Load CSV (use sidebar)</div>
+        <div class="dropdown-sep"></div>
+        <div class="dropdown-item" onclick="exportTableCSV()">💾 &nbsp;Export table as CSV</div>
+      </div>
+    </div>
+    <div class="menu-item" id="menu-view">
+      <span onclick="toggleMenu('view')">View ▾</span>
+      <div class="dropdown">
+        <div class="dropdown-item" onclick="switchView('table');closeMenus()">📋 &nbsp;Table (Search)</div>
+        <div class="dropdown-item" onclick="switchView('dendro');closeMenus()">🌿 &nbsp;Dendrogram</div>
+        <div class="dropdown-sep"></div>
+        <div class="dropdown-item disabled" id="menu-dendro-hint" style="font-size:10px;padding:4px 16px;">Load dendrogram JSON to enable</div>
+      </div>
+    </div>
+    <div class="menu-item" id="menu-tools">
+      <span onclick="toggleMenu('tools')">Tools ▾</span>
+      <div class="dropdown">
+        <div class="dropdown-item" onclick="highlightInDendro();closeMenus()">🔍 &nbsp;Find in Dendrogram</div>
+        <div class="dropdown-sep"></div>
+        <div class="dropdown-item" onclick="clearHighlight();closeMenus()">✕ &nbsp;Clear highlight</div>
+      </div>
+    </div>
+    <div class="menu-item" id="menu-help">
+      <span onclick="toggleMenu('help')">Help ▾</span>
+      <div class="dropdown">
+        <div class="dropdown-item" onclick="showHelp();closeMenus()">📖 &nbsp;How to use</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <!-- Data Sources -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Data Sources</div>
+      <div class="toggle-row" onclick="toggleColor()">
+        <div class="toggle-switch on" id="color-toggle"></div>
+        <span class="toggle-label">Mostrar panel de color</span>
+      </div>
+      <div class="sidebar-body">
+        <div id="color-upload-wrap">
+        <label class="ctrl-label">Color distances (CSV)</label>
+        <div class="upload-panel" id="drop-color">
+          <input type="file" id="file-color" accept=".csv">
+          <div class="upload-icon">📊</div>
+          <div class="upload-label"><strong id="color-label">distances_pairwise.csv</strong><span id="color-sub">Click o arrastra aquí</span></div>
+        </div>
+        <label class="ctrl-label">Color dendrogram (JSON)</label>
+        <div class="upload-panel" id="drop-dendro-color">
+          <input type="file" id="file-dendro-color" accept=".json">
+          <div class="upload-icon">🌿</div>
+          <div class="upload-label"><strong id="dendro-color-label">dendrogram_color.json</strong><span id="dendro-color-sub">Click o arrastra aquí</span></div>
+        </div>
+        </div>
+      </div>
+      <div class="toggle-row" onclick="toggleShapes()">
+        <div class="toggle-switch on" id="shapes-toggle"></div>
+        <span class="toggle-label">Mostrar panel de formas</span>
+      </div>
+      <div id="shape-upload-wrap" style="display:block">
+        <div class="sidebar-body" style="padding-top:12px">
+          <label class="ctrl-label">Shape distances (CSV)</label>
+          <div class="upload-panel" id="drop-shape">
+            <input type="file" id="file-shape" accept=".csv">
+            <div class="upload-icon">📐</div>
+            <div class="upload-label"><strong id="shape-label">shapes_pairwise.csv</strong><span id="shape-sub">Click o arrastra aquí</span></div>
+          </div>
+          <label class="ctrl-label">Shape dendrogram (JSON)</label>
+          <div class="upload-panel" id="drop-dendro-shape">
+            <input type="file" id="file-dendro-shape" accept=".json">
+            <div class="upload-icon">🌿</div>
+            <div class="upload-label"><strong id="dendro-shape-label">dendrogram_shapes.json</strong><span id="dendro-shape-sub">Click o arrastra aquí</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="sidebar-section" id="stats-section" style="display:none">
+      <div class="sidebar-section-title">Summary</div>
+      <div class="sidebar-body">
+        <div class="stat-grid">
+          <div class="stat-box"><div class="val" id="s-pairs">—</div><div class="lbl">Pares color</div></div>
+          <div class="stat-box"><div class="val" id="s-genos">—</div><div class="lbl">Genotipos</div></div>
+          <div class="stat-box"><div class="val" id="s-min">—</div><div class="lbl">Dist min</div></div>
+          <div class="stat-box"><div class="val" id="s-max">—</div><div class="lbl">Dist max</div></div>
+          <div class="stat-box"><div class="val" id="s-avg">—</div><div class="lbl">Promedio</div></div>
+          <div class="stat-box" id="s-shape-box" style="display:none"><div class="val shapes" id="s-shape-pairs">—</div><div class="lbl">Pares forma</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Search</div>
+      <div class="sidebar-body">
+        <label class="ctrl-label">Buscar genotipo / línea</label>
+        <input class="ctrl-input" type="text" id="q-search"
+               placeholder="Ej: AFR298, IRRIGATION…"
+               onkeydown="if(event.key==='Enter') doSearch()">
+        <label class="ctrl-label">Mostrar resultados</label>
+        <select class="ctrl-select" id="q-limit">
+          <option value="10">Top 10</option>
+          <option value="20" selected>Top 20</option>
+          <option value="50">Top 50</option>
+          <option value="100">Top 100</option>
+          <option value="0">Todos</option>
+        </select>
+        <label class="ctrl-label">Ordenar</label>
+        <div class="sort-pair">
+          <div class="sort-opt active" id="sort-asc"  onclick="setSort('asc')">↑ Similares</div>
+          <div class="sort-opt"        id="sort-desc" onclick="setSort('desc')">↓ Lejanos</div>
+        </div>
+        <button class="btn-run" onclick="doSearch()">▶ &nbsp;Run Search</button>
+        <button class="btn-clear" onclick="clearSearch()">Clear</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <div class="main-col">
+    <div class="main-header">
+      <div>
+        <div class="main-title">Color &amp; Shape Distance Explorer</div>
+        <div class="main-subtitle" id="main-subtitle">Carga un archivo CSV para comenzar</div>
+      </div>
+      <div class="badge-row">
+        <span class="badge badge-none" id="badge-color">Sin datos de color</span>
+        <span class="badge badge-none" id="badge-shape">Sin datos de formas</span>
+      </div>
+    </div>
+
+    <div id="view-table" class="main-content">
+      <div class="empty-state">
+        <div class="empty-icon">🔬</div>
+        <div class="empty-title">No hay datos cargados</div>
+        <div class="empty-sub">Carga <code>distances_pairwise.csv</code> en el panel izquierdo.</div>
+      </div>
+    </div>
+
+    <div id="view-dendro" class="dendro-view" style="display:none">
+      <div class="dendro-header">
+        <div class="dendro-title">Dendrogram — Hierarchical Clustering</div>
+        <div class="dendro-legend">
+          <span><span class="legend-dot" style="background:var(--text-mid)"></span>Genotipo</span>
+          <span><span class="legend-dot" style="background:var(--highlight)"></span>Búsqueda activa</span>
+          <span><span class="legend-dot" style="background:var(--clade)"></span>Clado resaltado</span>
+          <span style="color:var(--text-xdim);font-size:10px">Usa Search + Tools → Find in Dendrogram</span>
+        </div>
+      </div>
+      <div class="dendro-panels" id="dendro-panels">
+        <div class="dendro-no-data">Carga <code>dendrogram_color.json</code> en el sidebar para visualizar.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="console-bar">
+  <span class="prompt">R&gt;</span>
+  <span id="console-msg">Esperando datos…</span>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let colorPairs=[], shapePairs=[];
+let colorMin=0,colorMax=1,shapeMin=0,shapeMax=1;
+let colorEnabled=true, shapesEnabled=true, currentSort='asc';
+let dendroColorData=null, dendroShapeData=null;
+let currentView='table';
+let lastQuery='';
+let lastColorRows=[], lastShapeRows=[];
+
+// ── Menu ───────────────────────────────────────────────────
+function toggleMenu(n){
+  document.querySelectorAll('.menu-item').forEach(el=>{
+    el.id==='menu-'+n ? el.classList.toggle('open') : el.classList.remove('open');
+  });
+}
+function closeMenus(){document.querySelectorAll('.menu-item').forEach(el=>el.classList.remove('open'));}
+document.addEventListener('click',e=>{if(!e.target.closest('.menu-item'))closeMenus();});
+
+function switchView(v){
+  currentView=v;
+  document.getElementById('view-table').style.display  = v==='table'?'block':'none';
+  document.getElementById('view-dendro').style.display = v==='dendro'?'flex':'none';
+  if(v==='dendro'){document.getElementById('view-dendro').style.flexDirection='column';renderDendroView();}
+  setConsole(v==='table'?'View: Table':'View: Dendrogram');
+}
+
+// ── Toggles ────────────────────────────────────────────────
+function toggleColor(){
+  colorEnabled=!colorEnabled;
+  document.getElementById('color-toggle').classList.toggle('on',colorEnabled);
+  document.getElementById('color-upload-wrap').style.display=colorEnabled?'block':'none';
+  if(lastQuery) doSearch();
+  setConsole(colorEnabled?'Panel de color activado':'Panel de color desactivado');
+}
+
+function toggleShapes(){
+  shapesEnabled=!shapesEnabled;
+  document.getElementById('shapes-toggle').classList.toggle('on',shapesEnabled);
+  document.getElementById('shape-upload-wrap').style.display=shapesEnabled?'block':'none';
+  document.getElementById('badge-shape').style.display=shapesEnabled?'inline':'none';
+  if(lastQuery) doSearch();
+  setConsole(shapesEnabled?'Panel de formas activado':'Panel de formas desactivado');
+}
+
+// ── Sort ───────────────────────────────────────────────────
+function setSort(dir){
+  currentSort=dir;
+  ['asc','desc'].forEach(d=>document.getElementById('sort-'+d).classList.toggle('active',d===dir));
+  if(lastQuery) doSearch();
+}
+
+// ── File wiring ────────────────────────────────────────────
+function wireFile(dropId,inputId,handler){
+  const drop=document.getElementById(dropId), input=document.getElementById(inputId);
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');handler(e.dataTransfer.files[0]);});
+  input.addEventListener('change',e=>handler(e.target.files[0]));
+}
+wireFile('drop-color','file-color',        f=>loadCSV(f,'color'));
+wireFile('drop-shape','file-shape',        f=>loadCSV(f,'shape'));
+wireFile('drop-dendro-color','file-dendro-color', f=>loadJSON(f,'color'));
+wireFile('drop-dendro-shape','file-dendro-shape', f=>loadJSON(f,'shape'));
+
+// ── CSV ────────────────────────────────────────────────────
+function loadCSV(file,type){
+  if(!file) return;
+  setConsole('Leyendo '+file.name+'…');
+  const r=new FileReader(); r.onload=e=>parseCSV(e.target.result,file.name,type); r.readAsText(file);
+}
+function parseCSV(text,filename,type){
+  const lines=text.trim().split('\n');
+  const header=lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+  const i1=findCol(header,['Genotipo1','Image1','Label1','g1']);
+  const i2=findCol(header,['Genotipo2','Image2','Label2','g2']);
+  const id=findCol(header,['Distance','Distancia','dist','EMD','distance']);
+  if(i1<0||i2<0||id<0){alert('Columnas no reconocidas en '+filename);return;}
+  const pairs=[];
+  for(let i=1;i<lines.length;i++){
+    const c=splitLine(lines[i]); if(c.length<3) continue;
+    const d=parseFloat(c[id]); if(isNaN(d)) continue;
+    pairs.push({g1:c[i1].trim().replace(/"/g,''), g2:c[i2].trim().replace(/"/g,''), dist:d});
+  }
+  const dists=pairs.map(p=>p.dist);
+  const mn=Math.min(...dists), mx=Math.max(...dists), avg=dists.reduce((a,b)=>a+b,0)/dists.length;
+  if(type==='color'){
+    colorPairs=pairs; colorMin=mn; colorMax=mx;
+    const genos=new Set([...pairs.map(p=>p.g1),...pairs.map(p=>p.g2)]);
+    document.getElementById('s-pairs').textContent=pairs.length.toLocaleString();
+    document.getElementById('s-genos').textContent=genos.size.toLocaleString();
+    document.getElementById('s-min').textContent=mn.toFixed(2);
+    document.getElementById('s-max').textContent=mx.toFixed(2);
+    document.getElementById('s-avg').textContent=avg.toFixed(2);
+    document.getElementById('stats-section').style.display='block';
+    document.getElementById('badge-color').className='badge badge-color';
+    document.getElementById('badge-color').textContent='Color: '+pairs.length.toLocaleString()+' pares';
+    document.getElementById('main-subtitle').textContent=filename+' — '+genos.size+' genotipos, '+pairs.length.toLocaleString()+' pares';
+    markLoaded('drop-color','color-label','color-sub',filename,pairs.length,'loaded');
+    setConsole('read.csv("'+filename+'") → '+pairs.length+' pares, '+genos.size+' genotipos únicos');
+  } else {
+    shapePairs=pairs; shapeMin=mn; shapeMax=mx;
+    document.getElementById('s-shape-box').style.display='block';
+    document.getElementById('s-shape-pairs').textContent=pairs.length.toLocaleString();
+    document.getElementById('badge-shape').className='badge badge-shape';
+    document.getElementById('badge-shape').textContent='Formas: '+pairs.length.toLocaleString()+' pares';
+    markLoaded('drop-shape','shape-label','shape-sub',filename,pairs.length,'loaded-shapes');
+    setConsole('read.csv("'+filename+'") → '+pairs.length+' pares de formas cargados');
+  }
+  renderWelcome();
+  if(lastQuery) doSearch();
+}
+
+// ── JSON ───────────────────────────────────────────────────
+function loadJSON(file,type){
+  if(!file) return;
+  setConsole('Leyendo '+file.name+'…');
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(type==='color'){
+        dendroColorData=data;
+        markLoaded('drop-dendro-color','dendro-color-label','dendro-color-sub',file.name,data.meta.n_leaves,'loaded-dendro');
+        document.getElementById('menu-dendro-hint').style.display='none';
+        setConsole('Dendrogram color: '+data.meta.n_leaves+' hojas, method='+data.meta.method);
+      } else {
+        dendroShapeData=data;
+        markLoaded('drop-dendro-shape','dendro-shape-label','dendro-shape-sub',file.name,data.meta.n_leaves,'loaded-dendro-shape');
+        setConsole('Dendrogram shapes: '+data.meta.n_leaves+' hojas');
+      }
+      if(currentView==='dendro') renderDendroView();
+    }catch(err){alert('Error leyendo JSON: '+err.message);}
+  };
+  r.readAsText(file);
+}
+
+function markLoaded(dropId,labelId,subId,filename,n,cls){
+  document.getElementById(dropId).className='upload-panel '+cls;
+  document.getElementById(labelId).textContent=filename;
+  document.getElementById(subId).textContent=n.toLocaleString()+' — clic para reemplazar';
+}
+
+// ── Search ─────────────────────────────────────────────────
+function doSearch(){
+  const q=document.getElementById('q-search').value.trim().toLowerCase();
+  const limit=parseInt(document.getElementById('q-limit').value);
+  lastQuery=q;
+  if(!q){renderWelcome();return;}
+  if(!colorPairs.length && !shapePairs.length){setConsole('Error: no hay datos cargados');return;}
+
+  // Color rows — only if panel is enabled
+  const colorMatched = (!colorEnabled) ? [] : colorPairs
+    .filter(p=>p.g1.toLowerCase().includes(q)||p.g2.toLowerCase().includes(q))
+    .map(p=>{
+      const qG1=p.g1.toLowerCase().includes(q);
+      return {query:qG1?p.g1:p.g2, match:qG1?p.g2:p.g1, colorDist:p.dist, shapeDist:null};
+    })
+    .sort((a,b)=>currentSort==='asc'?a.colorDist-b.colorDist:b.colorDist-a.colorDist);
+
+  // Shape rows — ordered by currentSort on shapeDist (independent)
+  let shapeMatched=[];
+  const shapeMap=new Map();
+  if(shapesEnabled&&shapePairs.length){
+    shapePairs.forEach(p=>{
+      shapeMap.set(p.g1+'|||'+p.g2,p.dist);
+      shapeMap.set(p.g2+'|||'+p.g1,p.dist);
+    });
+    shapeMatched = shapePairs
+      .filter(p=>p.g1.toLowerCase().includes(q)||p.g2.toLowerCase().includes(q))
+      .map(p=>{
+        const qG1=p.g1.toLowerCase().includes(q);
+        return {query:qG1?p.g1:p.g2, match:qG1?p.g2:p.g1, shapeDist:p.dist, colorDist:null};
+      })
+      .sort((a,b)=>currentSort==='asc'?a.shapeDist-b.shapeDist:b.shapeDist-a.shapeDist);
+
+    // attach color dist to shape rows
+    shapeMatched.forEach(r=>{
+      const cp=colorPairs.find(p=>(p.g1===r.query&&p.g2===r.match)||(p.g2===r.query&&p.g1===r.match));
+      r.colorDist = cp ? cp.dist : null;
+    });
+    // attach shape dist to color rows
+    colorMatched.forEach(r=>{r.shapeDist=shapeMap.get(r.query+'|||'+r.match)??null;});
+  }
+
+  // Guard: nothing to show at all
+  if(!colorMatched.length && !shapeMatched.length){
+    renderEmpty('Sin resultados para "'+q+'"');
+    setConsole('0 matches para "'+q+'"');
+    return;
+  }
+
+  lastColorRows = limit>0 ? colorMatched.slice(0,limit) : colorMatched;
+  lastShapeRows = limit>0 ? shapeMatched.slice(0,limit) : shapeMatched;
+
+  renderDualTable(lastColorRows, lastShapeRows, q, colorMatched.length, shapeMatched.length);
+  const sortLabel=currentSort==='asc'?'↑ similares':'↓ lejanos';
+  setConsole('filter("'+q+'") → '+colorMatched.length+' color, '+shapeMatched.length+' forma | orden: '+sortLabel);
+}
+
+function clearSearch(){
+  document.getElementById('q-search').value='';
+  lastQuery=''; lastColorRows=[]; lastShapeRows=[];
+  renderWelcome(); setConsole('Búsqueda limpiada');
+}
+
+// ── Render dual panels ─────────────────────────────────────
+function renderDualTable(colorRows, shapeRows, q, colorTotal, shapeTotal){
+  const showColor=colorEnabled&&colorRows.length>0;
+  const showShape=shapesEnabled&&shapeRows.length>0;
+  const hasShapes=showShape;
+  const sortLabel=currentSort==='asc'?'↑':'↓';
+
+  if(!showColor&&!showShape){
+    renderEmpty('Activa al menos un panel (Color o Forma) para ver resultados.');
+    return;
+  }
+
+  const meta=`<div class="search-meta">
+    <span>Consulta: <strong>${q}</strong></span>
+    ${showColor?`<span>${colorTotal} comparaciones de color &nbsp;${sortLabel}</span>`:''}
+    ${showShape?`<span style="color:var(--warn)">${shapeTotal} comparaciones de forma &nbsp;${sortLabel}</span>`:''}
+  </div>`;
+
+  const panelCount=(showColor?1:0)+(showShape?1:0);
+  const gridClass='dual-results'+(panelCount<2?' single':'');
+  let html=`${meta}<div class="${gridClass}">`;
+
+  if(showColor){
+  // ── Panel COLOR ──────────────────────────────────────────
+  html+=`<div class="result-panel">
+    <div class="result-panel-header color-header">
+      <div class="result-panel-title"><span class="panel-dot panel-dot-color"></span>Más similares por COLOR</div>
+      <div class="result-panel-meta">${colorRows.length}/${colorTotal} &nbsp;·&nbsp; ${sortLabel} dist. color EMD</div>
+    </div>
+    <div class="panel-table-wrap"><table>
+    <thead><tr>
+      <th>#</th><th>Consulta</th><th>Comparado con</th><th>Dist. Color (EMD)</th>
+      ${hasShapes?'<th>Dist. Forma</th>':''}
+    </tr></thead><tbody>`;
+
+  colorRows.forEach((r,i)=>{
+    const cn=colorMax>colorMin?(r.colorDist-colorMin)/(colorMax-colorMin):0;
+    const cc=colorForDist(cn);
+    const rk=i===0?'r1':i===1?'r2':i===2?'r3':'';
+    let sTd='';
+    if(hasShapes){
+      sTd = r.shapeDist!==null
+        ? `<td><span class="sec-dist"><span class="sec-dot" style="background:${shapeColor((r.shapeDist-shapeMin)/(shapeMax-shapeMin||1))}"></span>${r.shapeDist.toFixed(2)}</span></td>`
+        : `<td style="color:var(--text-xdim);font-size:10px">—</td>`;
+    }
+    html+=`<tr>
+      <td class="td-rank ${rk}">${i+1}</td>
+      <td class="td-query">${highlight(r.query,q)}</td>
+      <td>${highlight(r.match,q)}</td>
+      <td><div class="dist-wrap">
+        <span class="dist-num" style="color:${cc}">${r.colorDist.toFixed(2)}</span>
+        <div class="bar-bg"><div class="bar-fill" style="width:${(cn*100).toFixed(1)}%;background:${cc}"></div></div>
+      </div></td>${sTd}
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div>`;
+  }
+
+  // ── Panel FORMA ──────────────────────────────────────────
+  if(hasShapes){
+    html+=`<div class="result-panel">
+      <div class="result-panel-header shape-header">
+        <div class="result-panel-title"><span class="panel-dot panel-dot-shape"></span>Más similares por FORMA</div>
+        <div class="result-panel-meta">${shapeRows.length}/${shapeTotal} &nbsp;·&nbsp; ${sortLabel} dist. forma (Eucl.)</div>
+      </div>
+      <div class="panel-table-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Consulta</th><th>Comparado con</th><th>Dist. Forma (Eucl.)</th><th>Dist. Color</th>
+      </tr></thead><tbody>`;
+
+    shapeRows.forEach((r,i)=>{
+      const sn=shapeMax>shapeMin?(r.shapeDist-shapeMin)/(shapeMax-shapeMin):0;
+      const sc=shapeColor(sn);
+      const rk=i===0?'r1s':i===1?'r2s':i===2?'r3s':'';
+      let cTd = r.colorDist!==null
+        ? `<td><span class="sec-dist"><span class="sec-dot" style="background:${colorForDist((r.colorDist-colorMin)/(colorMax-colorMin||1))}"></span>${r.colorDist.toFixed(2)}</span></td>`
+        : `<td style="color:var(--text-xdim);font-size:10px">—</td>`;
+      html+=`<tr>
+        <td class="td-rank ${rk}">${i+1}</td>
+        <td class="td-query-shape">${highlight(r.query,q)}</td>
+        <td>${highlight(r.match,q)}</td>
+        <td><div class="dist-wrap">
+          <span class="dist-num" style="color:${sc}">${r.shapeDist.toFixed(2)}</span>
+          <div class="bar-bg"><div class="bar-fill" style="width:${(sn*100).toFixed(1)}%;background:${sc}"></div></div>
+        </div></td>${cTd}
+      </tr>`;
+    });
+    html+=`</tbody></table></div></div>`;
+
+  } else if(shapesEnabled){
+    html+=`<div class="result-panel">
+      <div style="padding:20px">
+        <div class="no-shape-notice">⚠️ Carga <code>shapes_pairwise.csv</code> para ver similitud por forma</div>
+      </div>
+    </div>`;
+  }
+
+  html+=`</div>`;
+  document.getElementById('view-table').innerHTML=html;
+}
+
+function renderWelcome(){
+  document.getElementById('view-table').innerHTML = colorPairs.length
+    ? `<div class="empty-state"><div class="empty-icon">🧬</div><div class="empty-title">Datos listos</div><div class="empty-sub">${colorPairs.length.toLocaleString()} pares — escribe en Search para explorar.</div></div>`
+    : `<div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-title">No hay datos cargados</div><div class="empty-sub">Carga <code>distances_pairwise.csv</code> en el panel izquierdo.</div></div>`;
+}
+function renderEmpty(msg){
+  document.getElementById('view-table').innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Sin resultados</div><div class="empty-sub">${msg}</div></div>`;
+}
+
+// ── Color helpers ──────────────────────────────────────────
+function colorForDist(n){
+  n=Math.max(0,Math.min(1,n));
+  if(n<0.33){const t=n/0.33;return`rgb(${Math.round(43+t*160)},${Math.round(108+t*100)},${Math.round(176-t*100)})`;}
+  else if(n<0.66){const t=(n-0.33)/0.33;return`rgb(${Math.round(203+t*40)},${Math.round(208-t*120)},${Math.round(76-t*40)})`;}
+  else{const t=(n-0.66)/0.34;return`rgb(${Math.round(243-t*50)},${Math.round(88-t*30)},36)`;}
+}
+function shapeColor(n){
+  n=Math.max(0,Math.min(1,n));
+  return`rgb(${Math.round(39+n*176)},${Math.round(128-n*68)},${Math.round(174-n*138)})`;
+}
+
+// ── Export ─────────────────────────────────────────────────
+function exportTableCSV(){
+  if(!lastColorRows.length){setConsole('No hay tabla para exportar');return;}
+  const lines=['Consulta,Comparado_con,Dist_Color,Dist_Forma,Panel'];
+  lastColorRows.forEach(r=>lines.push([r.query,r.match,r.colorDist!=null?r.colorDist.toFixed(4):'',r.shapeDist!=null?r.shapeDist.toFixed(4):'','Color'].join(',')));
+  lastShapeRows.forEach(r=>lines.push([r.query,r.match,r.colorDist!=null?r.colorDist.toFixed(4):'',r.shapeDist!=null?r.shapeDist.toFixed(4):'','Forma'].join(',')));
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='search_results.csv'; a.click();
+  setConsole('Exportado: search_results.csv (Color + Forma)');
+}
+
+// ── Dendrogram ─────────────────────────────────────────────
+function highlightInDendro(){
+  if(!dendroColorData){setConsole('Carga primero el dendrogram_color.json');return;}
+  if(!lastQuery){setConsole('Haz una búsqueda primero, luego usa Find in Dendrogram');return;}
+  switchView('dendro');
+}
+function clearHighlight(){
+  lastQuery=''; document.getElementById('q-search').value='';
+  if(currentView==='dendro') renderDendroView();
+  setConsole('Highlight limpiado');
+}
+
+function renderDendroView(){
+  const panel=document.getElementById('dendro-panels');
+  const hasBoth=dendroColorData&&dendroShapeData&&shapesEnabled;
+  panel.className='dendro-panels'+(hasBoth?' two-col':'');
+  if(!dendroColorData){
+    panel.innerHTML='<div class="dendro-no-data">Carga <code>dendrogram_color.json</code> para visualizar.</div>';
+    return;
+  }
+  panel.innerHTML='';
+  const cDiv=document.createElement('div'); cDiv.className='dendro-panel';
+  cDiv.innerHTML='<div class="dendro-panel-title">Color EMD — '+dendroColorData.meta.method.toUpperCase()+' linkage (n='+dendroColorData.meta.n_leaves+')</div><div id="svg-color"></div>';
+  panel.appendChild(cDiv); drawDendrogram('svg-color',dendroColorData,lastQuery);
+  if(hasBoth){
+    const sDiv=document.createElement('div'); sDiv.className='dendro-panel';
+    sDiv.innerHTML='<div class="dendro-panel-title">Shape — '+dendroShapeData.meta.method.toUpperCase()+' linkage (n='+dendroShapeData.meta.n_leaves+')</div><div id="svg-shape"></div>';
+    panel.appendChild(sDiv); drawDendrogram('svg-shape',dendroShapeData,lastQuery);
+  }
+}
+
+function drawDendrogram(cid,data,query){
+  document.getElementById(cid).innerHTML='';
+  const tree=data.tree, n=data.meta.labels.length;
+  const mg={top:20,right:200,bottom:20,left:60};
+  const h=Math.max(400,n*18), w=700;
+  const svg=d3.select('#'+cid).append('svg').attr('class','dendro-svg')
+    .attr('width',w+mg.left+mg.right).attr('height',h+mg.top+mg.bottom)
+    .append('g').attr('transform','translate('+mg.left+','+mg.top+')');
+  const root=d3.hierarchy(tree,d=>d.children&&d.children.length?d.children:null);
+  const leaves=root.leaves();
+  const yS=d3.scaleLinear().domain([0,n-1]).range([0,h]);
+  const maxH=root.data.height;
+  const xS=d3.scaleLinear().domain([maxH,0]).range([0,w]);
+  const ql=query?query.toLowerCase():'';
+  let hl=new Set(), cl=new Set();
+  if(ql){
+    leaves.forEach(l=>{if(l.data.name.toLowerCase().includes(ql)) hl.add(l.data.name);});
+    if(hl.size) root.each(nd=>{if(nd.leaves().some(l=>hl.has(l.data.name))) cl.add(nd);});
+  }
+  const ny=new Map(); let lc=0;
+  function ay(nd){
+    if(!nd.children||!nd.children.length){ny.set(nd,yS(lc++));}
+    else{nd.children.forEach(c=>ay(c));const ys=nd.children.map(c=>ny.get(c));ny.set(nd,(Math.min(...ys)+Math.max(...ys))/2);}
+  }
+  ay(root);
+  function dl(nd){
+    if(!nd.children||!nd.children.length) return;
+    const nx=xS(nd.data.height);
+    nd.children.forEach(ch=>{
+      const cc=cl.has(ch)&&hl.size>0;
+      svg.append('line').attr('class','link'+(cc?' clade':'')).attr('x1',nx).attr('y1',ny.get(ch)).attr('x2',xS(ch.data.height)).attr('y2',ny.get(ch));
+      dl(ch);
+    });
+    const inc=cl.has(nd)&&hl.size>0;
+    const cys=nd.children.map(c=>ny.get(c));
+    svg.append('line').attr('class','link'+(inc?' clade':'')).attr('x1',nx).attr('y1',Math.min(...cys)).attr('x2',nx).attr('y2',Math.max(...cys));
+  }
+  dl(root);
+  leaves.forEach(lf=>{
+    const x=xS(0), y=ny.get(lf), nm=lf.data.name;
+    const iH=hl.has(nm), iC=cl.has(lf)&&hl.size>0&&!iH;
+    svg.append('circle').attr('class','leaf-circle'+(iH?' highlighted':iC?' in-clade':'')).attr('cx',x).attr('cy',y).attr('r',iH?4:2.5);
+    svg.append('text').attr('class','leaf-text'+(iH?' highlighted':iC?' in-clade':'')).attr('x',x+8).attr('y',y).attr('dominant-baseline','middle').text(nm);
+  });
+  svg.append('g').attr('class','axis').call(d3.axisTop(d3.scaleLinear().domain([0,maxH]).range([w,0])).ticks(5).tickFormat(d=>d.toFixed(1)));
+  svg.append('text').attr('x',w/2).attr('y',-14).attr('text-anchor','middle').style('font-family','var(--mono)').style('font-size','10px').style('fill','var(--text-dim)').text('Distance');
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function highlight(t,q){return t.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');}
+function setConsole(m){document.getElementById('console-msg').textContent=m;}
+function findCol(h,cs){for(const c of cs){const i=h.findIndex(x=>x.toLowerCase()===c.toLowerCase());if(i>=0)return i;}return -1;}
+function splitLine(l){const r=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===','&&!q){r.push(c);c='';}else c+=ch;}r.push(c);return r;}
+function showHelp(){
+  alert('Color & Shape Distance Explorer\n\n1. Carga distances_pairwise.csv (color) en el sidebar\n2. Activa "Datos de formas" → carga shapes_pairwise.csv\n3. Escribe en Search → aparecen DOS paneles:\n   ■ IZQUIERDO: top similares/lejanos por COLOR\n      — columna Consulta + Comparado con + Dist. Color + Dist. Forma\n   ■ DERECHO:   top similares/lejanos por FORMA (orden independiente)\n      — columna Consulta + Comparado con + Dist. Forma + Dist. Color\n4. Botones ↑ Similares / ↓ Lejanos aplican a AMBOS paneles\n5. View → Dendrogram: árboles jerárquicos lado a lado\n6. Tools → Find in Dendrogram: resalta búsqueda en árbol\n7. File → Export CSV: guarda Color y Forma en un CSV');
+}
+</script>
+</body>
+</html>
