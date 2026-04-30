@@ -367,19 +367,18 @@ TRIAL_FOLDER/
 │   └── analisis_colores.csv
 ├── colorDistance/
 │   └── distance_matrix_emd.csv
+│   ├── dendrogram_color.json
 ├── formaPromedio/
 │   └── efa_coefficients_all_images.csv
 ├── formasDistance/
 │   └── shapes_distance_matrix.csv
-├── dendrogramas/
-│   ├── dendrogram_color.json
 │   └── dendrogram_shapes.json
-├── clusterIntegrado/
 ├── conteo/
+│   └── reporte_YYYYMMDD.csv
 ├── libroCampo/
 │   └── libroCampo.csv
 └── resultadosUnidos/
-    └── metricasCompletasSemillas_TRIAL_YYYYMMDD.csv
+    └── metricasCompletasSemillas_Conteo-Color-Morfometria-Forma_TRIAL_YYYYMMDD.csv
 ```
 
 ---
