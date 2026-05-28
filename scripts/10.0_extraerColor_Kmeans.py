@@ -1,3 +1,4 @@
+# 10.0_extraerColor_Kmeans.py
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
@@ -8,11 +9,11 @@ from matplotlib.patches import Rectangle
 from dotenv import load_dotenv
 load_dotenv()
 
-# === Función para calcular luminosidad ===
+#Función para calcular luminosidad
 def luminosidad(rgb):
     return round(0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2], 2)
 
-# === Procesar cada imagen ===
+#Procesar cada imagen
 def process_image(img_path, n_colors, erosion_iterations=3, kernel_size=7):
     img = cv2.imread(img_path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -28,7 +29,6 @@ def process_image(img_path, n_colors, erosion_iterations=3, kernel_size=7):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = ~mask.astype(bool)
 
-    # === NUEVA SECCIÓN: Erosión adicional para limpiar bordes ===
     # Convertir la máscara a uint8 para operaciones morfológicas
     mask_uint8 = mask.astype(np.uint8) * 255
     
@@ -82,17 +82,14 @@ def process_image(img_path, n_colors, erosion_iterations=3, kernel_size=7):
     return img, segmented, colors_data
 
 # === Carpetas ===
-input_folder = os.getenv('RUTA') + '/SegmentadasCortadas'
+input_folder = os.getenv('RUTA') + '/Segmentadas'
 output_folder = os.getenv('RUTA') + '/Colorimetria'
 os.makedirs(output_folder, exist_ok=True)
 
 # === DataFrame para CSV ===
 csv_data = []
 
-# === Procesamiento ===
-# Ajusta estos parámetros según necesites:
-# - erosion_iterations: número de veces que se aplica la erosión (más = más limpieza)
-# - kernel_size: tamaño del kernel de erosión (más grande = erosión más agresiva)
+# Parámetros de procesamiento (ajustar según sea necesario)
 EROSION_ITERATIONS = 3  # Prueba con 2, 3, 4 o 5
 KERNEL_SIZE = 7  # Prueba con 5, 7, 9 o 11
 
@@ -115,7 +112,7 @@ for filename in os.listdir(input_folder):
             ax.imshow(processed)
             ax.axis('off')
 
-            # === Posición y dimensiones del cuadro ===
+            #Posción y tamaño del cuadro de texto (ajustar según sea necesario)
             box_x, box_y = 0.70, 0.97
             box_width, box_height = 0.29, 0.08 * (len(colors_data) + 1.5)
 
@@ -127,7 +124,7 @@ for filename in os.listdir(input_folder):
                 color='white', alpha=0.7, ec='black', lw=0.6
             ))
 
-            # === Título con nombre de la imagen ===
+            #Titulo del cuadro con nombre de la imagen
             nombre_imagen = os.path.splitext(filename)[0]
             ax.text(
                 box_x + 0.01, box_y - 0.02,
@@ -137,7 +134,7 @@ for filename in os.listdir(input_folder):
                 va='top', ha='left', zorder=3
             )
 
-            # === Datos de colores ===
+            #Datos de cada color detectado
             for idx, (rgb, hex_c, lum, pct) in enumerate(colors_data):
                 y_pos = box_y - 0.12 - idx*0.09
                 ax.add_patch(plt.Rectangle(

@@ -1,13 +1,15 @@
+#07_ApplyMaskApp.py
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, colorchooser
 from PIL import Image, ImageTk, ImageDraw
 import glob
 
+# Objeto principal de la aplicación para aplicar máscaras a las imágenes
 class AppMascara:
     def __init__(self, root):
         self.root = root
-        self.root.title("EasyBean - Máscara de Color v2.0")
+        self.root.title("FenotIT - Aplicar Máscaras")
 
         self.source_folder = tk.StringVar()
         self.mask_color_mode = tk.StringVar(value="preset")

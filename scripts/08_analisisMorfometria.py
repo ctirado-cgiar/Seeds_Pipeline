@@ -1,33 +1,4 @@
-'''
-Script eleborado a detalle para el programa de mejoramiento de frijol
-Escrito en Python 3.11.9 en un entorno de desarrollo virtual por Cristian Tirado.
-
-Librerias
-- Os instalado por defecto
-- OpenCV istalado por consola en la version
-- Numpy instalado por en la terminal en la version 
-- Csv importado directamente
-- Random importado directamente
-- Matplotlib instalado por la terminal en la versión
-
-Que hace?
-- Mejora el contraste de las imagenes ingresadas basado en un Alpha y Beta definido por el usuario
-- Filtra objetos en la imagen que puden ser considerados como suciedad, no se aplican operaciones morfologicas para no cambiar las areas reales.
-- Toma un set de imagenes previamente binarizadas, detecta los objetos y calcula algunos 37 descriptores de la función procesar imagen
-- Agrega todos los descriptores de la imagen a un archivo CSV y los exporta en la CARPETA INDICADA DE RESULTADOS
-- Muestra el resultado de manera grafica sobre una imagen aleatoria.
-
-
-COSAS QUE EL USUARIO DEBE TENER EN CUENTA:
-
-- Debe contar con un set de imagenes con objetos de interes (hojas, vainas, semillas etc) habiendo seleccionado el area de interes a procesar, idelmente con un fondo de color similar que facilite el proceso de analisis.
-- Debe suministrar en el MAIN la ruta de las carpetas solicitadas, tales como Origen de las Imagenes con el area de interes, las binarizadas, 
-  las segmentadas y la carpeta donde se almacenaran los resultados del proceso.
-  El usuario dispondra de un set de imagenes.
-'''
-
-
-
+#08_analisisMorfometria.py
 import os
 import cv2
 import csv
@@ -52,15 +23,16 @@ def eliminar_objetos_pequenos(mask, area_minima=100):
             cv2.drawContours(mask_filtrada, [cnt], -1, 255, -1)
     return mask_filtrada
 
-#def cargar_factor_escala(ruta="D:/OneDrive - CGIAR/Frijol/Datos/Imagenes/Photoboot/Mexico_Diversity/Calibracion/factor_escala.json"):
+
 def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):
-    """Carga el factor de escala desde el archivo JSON."""
+    # Intenta cargar el factor desde el JSON
     try:
         with open(ruta, 'r') as f:
             data = json.load(f)
             return data["factor_escala"]
     except FileNotFoundError:
         print("¡Archivo de calibración no encontrado! Usando 1.0 (píxeles).")
+        print("Asegúrate de ejecutar los scripts de calibración (05_ConocerEscalas.py) antes de este paso.")
         return 1.0
 
 
@@ -79,25 +51,16 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
     metricas_adicionales = []
 
     for i, contorno in enumerate(contornos):
+        # Filtro de area
         area = cv2.contourArea(contorno)
-        if area < 200:
-            #print(f"Advertencia: Área demasiado pequeña ({area}) en {nombre_imagen}. Saltando contorno.")
+        if area < 200 or area > 12000:
             continue
-        if area > 12000:
-            #print(f"Advertencia: Área demasiado grande ({area}) en {nombre_imagen}. Saltando contorno.")
-            continue
-        
         # Rectángulo mínimo
         rect = cv2.minAreaRect(contorno)
         (x, y), (w, h), angulo = rect
         w, h = (h, w) if w > h else (w, h)
-
-        if w < 5 or w > 105:
-            #print(f"Advertencia: Ancho fuera de rango ({w}px) en {nombre_imagen}. Saltando contorno.")
-            continue
-
-        if h < 10 or h > 190:
-            #print(f"Advertencia: Largo fuera de rango ({h}px) en {nombre_imagen}. Saltando contorno.")
+        # Filtro de dimensiones
+        if w < 5 or w > 105 or h < 10 or h > 190:
             continue
 
         # Cálculo del centro de masa
@@ -125,8 +88,6 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
             major_axis = h
             minor_axis = w
             eccentricity = np.sqrt(1 - (w**2 / h**2))
-        
-        # Radios y diámetros
         radio_min = w/2 
         radio_max = h/2
         radio_mean = (radio_max + radio_min)/2
@@ -134,7 +95,6 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         diam_mean = (w + h)/2
         diam_max = h
         radius_ratio = radio_max/radio_min
-        # Ángulo theta (orientación)
         theta = (180/np.pi)*(np.radians(angulo))
         form_factor = (4 * np.pi * area) / (perimetro**2) if perimetro > 0 else 0
         narrow_factor = caliper / h
@@ -213,7 +173,7 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         }
         metricas_adicionales.append(metricas)
 
-        # Dibujar anotaciones (código original)
+        # Dibujar anotaciones
         cv2.drawContours(imagen_contornos, [contorno], -1, (0,255,0), 1)
         cv2.drawMarker(imagen_contornos, (cx, cy), (255,0,0), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)
         
@@ -221,22 +181,18 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
             f"Seed {i+1}",
             f"Area: {area*(factor_escala**2):.1f}",
             f"W: {w*factor_escala:.1f}, L: {h*factor_escala:.1f}",
-            #f"Centroide: ({cx}, {cy})",
-            #f"Theta: {theta:.1f}",
             f"Circ: {circularity: .1f} , Rect: {rectangularity: .1f}",
             f"+ Metrics on CSV"
         ]
-        
         y_texto = cy - 40
         for linea in texto:
             cv2.putText(imagen_contornos, linea, (cx-50, y_texto), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
             y_texto += 15
 
-    # Escribir en CSV
+    # Escribir en CSV nuevas filas para cada semilla detectada
     for metrica in metricas_adicionales:
         escritor_csv.writerow(metrica)
-
     return imagen_contornos
 
 def main():
@@ -251,9 +207,8 @@ def main():
     for dir in carpetas.values():
         os.makedirs(dir, exist_ok=True)
 
-    # Cargar factor de escala desde JSON (si existe)
+    # Cargar factor de escala desde JSON
     try:
-        #with open('D:/OneDrive - CGIAR/Frijol/Procesamiento/Seeds_Pipeline/Mexico_Diversity/Calibracion/factor_escala.json', 'r') as f:
         with open(os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json', 'r') as f:
             factor_data = json.load(f)
             factor_escala = factor_data['factor_escala']
@@ -266,7 +221,6 @@ def main():
     csv_path = os.path.join(carpetas["results"], "metricasCompletas.csv")
     
     # Configuración de imágenes a guardar (solo para Segmented/ y Results/)
-    #guardar_n = 10  # Número exacto de imágenes a guardar en estas carpetas
     guardar_n = len(os.listdir(carpetas["input"]))  #el número de imágenes disponibles
     imagenes_disponibles = [
         archivo for archivo in os.listdir(carpetas["input"]) 

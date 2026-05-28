@@ -1,3 +1,4 @@
+#06_CutImagesApp.py
 import os
 import sys
 import tkinter as tk
@@ -8,7 +9,7 @@ import glob
 class ImageCropperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("EasyBean - Morfologia V.1.0.0")
+        self.root.title("FenotIT - Cut Images App")
         
         # Variables
         self.source_folder = tk.StringVar()
@@ -64,7 +65,14 @@ class ImageCropperApp:
         folder = filedialog.askdirectory(title="Seleccionar carpeta con imágenes")
         if folder:
             self.source_folder.set(folder)
-            self.status.config(text=f"Carpeta origen seleccionada: {folder}")
+            
+            # Establecer carpeta de destino por defecto: areaInteres al mismo nivel que la carpeta origen
+            parent_folder = os.path.dirname(folder)
+            dest_folder = os.path.join(parent_folder, "areaInteres")
+            os.makedirs(dest_folder, exist_ok=True)
+            self.dest_folder.set(dest_folder)
+            
+            self.status.config(text=f"Carpeta origen: {folder} | Carpeta destino: {dest_folder}")
     
     def select_dest_folder(self):
         folder = filedialog.askdirectory(title="Seleccionar carpeta de destino")

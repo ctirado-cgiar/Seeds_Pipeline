@@ -1,14 +1,12 @@
+#09_summarizeMorfometria.py
 import pandas as pd
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-# ── Rutas desde .env ──────────────────────────────────────────────────────────
+# Rutas de entrada y salida
 RUTA = os.getenv('RUTA')
-if not RUTA:
-    raise EnvironmentError("La variable RUTA no está definida en el archivo .env")
-
 INPUT_CSV  = os.path.join(RUTA, 'Morfometria', 'metricasCompletas.csv')
 OUTPUT_CSV = os.path.join(RUTA, 'Morfometria', 'metricasCompletas_summary.csv')
 
@@ -26,18 +24,18 @@ METRIC_COLS = [
 ]
 
 # ── Procesamiento ─────────────────────────────────────────────────────────────
-print(f"📂 Leyendo: {INPUT_CSV}")
+print(f"Leyendo: {INPUT_CSV}")
 df = pd.read_csv(INPUT_CSV)
 
-print(f"   {len(df)} filas | {df['Imagen'].nunique()} imágenes únicas")
+print(f"{len(df)} filas | {df['Imagen'].nunique()} imágenes únicas")
 
 # Agregar mean, median, std por imagen
 summary = df.groupby('Imagen')[METRIC_COLS].agg(['mean', 'median', 'std'])
 
-# Aplanar columnas: W_mean, W_median, W_std, L_mean ...
+# Aplanar columnas: W_mean, W_median, W_std, L_mean
 summary.columns = [f"{col}_{stat}" for col, stat in summary.columns]
 
-# Agregar Total_seeds (es el mismo para todas las filas de una imagen)
+# Agregar Total (es el mismo para todas las filas de una imagen)
 summary.insert(0, 'Total_seeds', df.groupby('Imagen')['Total_seeds'].first())
 
 summary.to_csv(OUTPUT_CSV, index=True)

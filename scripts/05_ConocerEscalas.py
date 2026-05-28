@@ -1,3 +1,4 @@
+#05_ConocerEscalas.py
 import os
 import cv2
 import json
@@ -9,9 +10,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def calcular_factor_escala(ruta_imagen_calibracion):
-    """
-    Calcula el factor de escala (mm/píxel) a partir de una imagen con una referencia conocida.
-    """
     # Cargar imagen de calibración
     imagen = cv2.imread(ruta_imagen_calibracion)
     if imagen is None:
@@ -89,15 +87,13 @@ def calcular_factor_escala(ruta_imagen_calibracion):
     fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
 
-def guardar_factor_escala(factor, ruta_guardado=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):    
-    """Guarda el factor de escala en un archivo JSON."""
+def guardar_factor_escala(factor, ruta_guardado=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):
     os.makedirs(os.path.dirname(ruta_guardado), exist_ok=True)
     with open(ruta_guardado, 'w') as f:
         json.dump({"factor_escala": factor}, f)
     print(f"Factor de escala guardado: {factor:.6f} mm/píxel en {ruta_guardado}")
 
 def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):
-    """Carga el factor de escala desde el archivo JSON."""
     try:
         with open(ruta, 'r') as f:
             data = json.load(f)
@@ -109,9 +105,7 @@ def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEsca
 # --- Ejecución principal ---
 if __name__ == "__main__":
     # Ruta de la imagen de calibración (debe tener una regla o objeto de referencia)
-    #ruta_imagen_calibracion = "D:/OneDrive - CGIAR/Frijol/Procesamiento/Seeds_Pipeline/Mexico_Diversity/Calibracion/colorCard/calibresult.jpg"
     ruta_imagen_calibracion = os.getenv('RUTA') + '/calibracionCamara/ajedrez/1.jpg'
-    # Calcular y guardar el factor
     factor = calcular_factor_escala(ruta_imagen_calibracion)
     if factor is not None:
         guardar_factor_escala(factor)
