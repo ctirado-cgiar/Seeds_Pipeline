@@ -42,7 +42,11 @@ for fname in images:
         imgpoints.append(corners2)
 
         img_corners = img.copy()
+        # Dibujar esquinas con líneas más gruesas
         cv.drawChessboardCorners(img_corners, (7,6), corners2, ret)
+        for corner in corners2:
+            x, y = int(corner[0][0]), int(corner[0][1])
+            cv.circle(img_corners, (x, y), 5, (0, 255, 0), thickness=5)
         if GUARDAR_CHESSBOARD_CORNERS:
             base_name = os.path.basename(fname)
             name, ext = os.path.splitext(base_name)
