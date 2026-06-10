@@ -12,7 +12,7 @@ load_dotenv()
 print(f"Versión de plantcv: {pcv.__version__}")  # creado bajo la 4.46
 
 # Configuración de parámetros para plantcv
-pcv.params.debug = "plot"  # Mostrar imágenes intermedias para depuración
+pcv.params.debug = "none"  # Mostrar imágenes intermedias para depuración
 pcv.params.dpi = 96       # Resolución de las imágenes en dpi
 pcv.params.text_size = 1    # Tamaño del texto en las imágenes
 pcv.params.text_thickness = 1  # Grosor del texto en las imágenes

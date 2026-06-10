@@ -22,7 +22,13 @@ def eliminar_objetos_pequenos(mask, area_minima=100):
         if cv2.contourArea(cnt) >= area_minima:
             cv2.drawContours(mask_filtrada, [cnt], -1, 255, -1)
     return mask_filtrada
-
+# Función para eliminar solo extensiones típicas de imagen
+def eliminar_extension_imagen(nombre_archivo):
+    extensiones = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif')
+    for ext in extensiones:
+        if nombre_archivo.lower().endswith(ext):
+            return nombre_archivo[:-len(ext)]
+    return nombre_archivo
 
 def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):
     # Intenta cargar el factor desde el JSON
@@ -129,7 +135,7 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         entropy = graycoprops(glcm, 'entropy')[0, 0]
     
         metricas = {
-            "Imagen": nombre_imagen,
+            "Imagen": eliminar_extension_imagen(nombre_imagen),
             "Total_seeds": len(contornos),
             "seed": i + 1,
             "W": w*factor_escala,
