@@ -412,7 +412,7 @@ Scripts 10.1 and 12 expect images named as `in_row=NNNN.jpg` or `in_row=NNNN_2.j
 
 If you use this pipeline in your research, please cite:
 
-> Alliance Bioversity International and CIAT — Bean Breeding Program (2025). *Seeds_Pipeline: A modular Python pipeline for digital phenotyping of Phaseolus spp. seeds*. Palmira, Colombia.
+> Alliance Bioversity International and CIAT — Bean Breeding Program (2025). *Seeds_Pipeline: A modular Python pipeline for digital phenotyping of Phaseolus spp. seeds — extracting morphometric traits, color profiles, shape descriptors (EFA), and hierarchical clustering from image data*. Palmira, Colombia.
 
 Relevant methodological references:
 
