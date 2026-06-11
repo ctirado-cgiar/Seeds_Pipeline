@@ -1,0 +1,42 @@
+# Entornos virtuales
+venv/
+env/
+.env
+*.env
+
+# Variables de entorno
+.env
+scripts/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Datos y resultados (carpetas pesadas)
+Trials/
+Trial/
+Test/
+
+# Imágenes y archivos grandes
+*.zip
+*.mp4
+*.avi
+*.png
+*.jpg
+*.jpeg
+*.tiff
+*.tif
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
