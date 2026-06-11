@@ -16,7 +16,7 @@ dist = calib_data['dist']  # Coeficientes de distorsión
 
 # Rutas de entrada y salida
 input_dir = os.getenv('RUTA') + '/all/*.jpg' 
-output_dir = os.getenv('RUTA') + '/noDistorcion/'
+output_dir = os.getenv('RUTA') + '/noDistorsion/'
 os.makedirs(output_dir, exist_ok=True)
 
 # Obtener la lista de imágenes a procesar

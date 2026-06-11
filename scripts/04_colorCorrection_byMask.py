@@ -12,7 +12,7 @@ pcv.params.debug = None  # Desactivar la visualización automática de PlantCV
 
 # Definir rutas
 ruta_mascara       = os.getenv('RUTA') + '/calibracionCamara/colorCard/colorCard_mask.png'
-carpeta_imagenes   = os.getenv('RUTA') + '/noDistorcion/'
+carpeta_imagenes   = os.getenv('RUTA') + '/noDistorsion/'
 carpeta_corregidas = os.getenv('RUTA') + '/colorCorrejidas/'
 os.makedirs(carpeta_corregidas, exist_ok=True)
 
