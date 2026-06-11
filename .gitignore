@@ -19,6 +19,9 @@ __pycache__/
 Trials/
 Trial/
 Test/
+docs/
+Flowers_Processing/
+sample_data/
 
 # Imágenes y archivos grandes
 *.zip
