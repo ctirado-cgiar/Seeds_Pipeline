@@ -12,7 +12,7 @@ load_dotenv()
 print(f"Versión de plantcv: {pcv.__version__}")  # creado bajo la 4.46
 
 # Configuración de parámetros para plantcv
-pcv.params.debug = "none"  # Mostrar imágenes intermedias para depuración
+pcv.params.debug = "plot"  # Mostrar imágenes intermedias para depuración
 pcv.params.dpi = 96       # Resolución de las imágenes en dpi
 pcv.params.text_size = 1    # Tamaño del texto en las imágenes
 pcv.params.text_thickness = 1  # Grosor del texto en las imágenes
@@ -64,9 +64,6 @@ if card_matrix.shape != std_color_matrix.shape:
 # Aplicar la corrección de color a la imagen completa
 img_corregida = pcv.transform.affine_color_correction(rgb_img=img, source_matrix=card_matrix, 
                                                       target_matrix=std_color_matrix)
-
-# Mostrar la imagen corregida
-pcv.plot_image(img_corregida)
 
 # Guardar la imagen corregida
 ruta_guardado = os.getenv('RUTA') + '/calibracionCamara/colorCard/colorCard.png'

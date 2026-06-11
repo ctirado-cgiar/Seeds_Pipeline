@@ -22,6 +22,7 @@ objp[:,:2] = np.mgrid[0:7,0:6].T.reshape(-1,2)
 
 objpoints = []
 imgpoints = []
+images_sin_tablero = []  # Guardar imágenes sin tablero detectado
 
 images = glob.glob(os.getenv('RUTA') + '/calibracionCamara/ajedrez/*.jpg')
 
@@ -57,6 +58,7 @@ for fname in images:
             cv.imwrite(out_path, img_corners)
     else:
         print(f"No se encontraron esquinas en: {fname}")
+        images_sin_tablero.append(fname)  # Guardar imagen sin tablero
 
 cv.destroyAllWindows()
 
@@ -73,7 +75,14 @@ if len(objpoints) > 0:
     os.makedirs(os.getenv('RUTA') + '/calibracionCamara/colorCard', exist_ok=True)
     os.makedirs(os.getenv('RUTA') + '/calibracionCamara/parametrosCorreccion', exist_ok=True)
 
-    img = cv.imread(os.getenv('RUTA') + '/calibracionCamara/ajedrez/0.jpg')
+    # Buscar imagen para colorCard: primero intenta 0.jpg, si no existe usa la primera sin tablero
+    colorcard_path = os.getenv('RUTA') + '/calibracionCamara/ajedrez/0.jpg'
+    
+    if not os.path.exists(colorcard_path) and len(images_sin_tablero) > 0:
+        colorcard_path = images_sin_tablero[0]
+        print(f"0.jpg no encontrado. Usando imagen sin tablero para colorCard: {os.path.basename(colorcard_path)}")
+    
+    img = cv.imread(colorcard_path)
     if img is not None:
         h, w = img.shape[:2]
         newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
@@ -89,6 +98,6 @@ if len(objpoints) > 0:
         np.savetxt(os.getenv('RUTA') + '/calibracionCamara/parametrosCorreccion/dist_coeffs.txt', dist)
         print("Calibración completada y parámetros guardados")
     else:
-        print("Error: No se pudo cargar la imagen para prueba de distorsión")
+        print(f"Error: No se pudo cargar la imagen para colorCard desde {colorcard_path}")
 else:
     print("Error: No se detectaron esquinas en ninguna imagen. No se puede calibrar.")
