@@ -109,9 +109,9 @@ All scripts read this variable to locate input and output folders.
 Run each script manually in numbered order from the `scripts/` folder:
 
 ```bash
-python scripts/01_ObtenerParametros_Ajedrez.py
-python scripts/02_DistorcionCorrection_Ajedrez.py
-python scripts/03_ObtenerMascara_ColorCard.py
+python scripts/01_getParameters_chessboard.py
+python scripts/02_distortionCorrection_chessboard.py
+python scripts/03_getMask_colorCard.pyy
 # ... and so on through script 16
 ```
 
@@ -123,7 +123,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Geometric correction
 
-#### `01_ObtenerParametros_Ajedrez.py`
+#### `01_getParameters_chessboard.py`
 
 - **Input:** `calibracionCamara/ajedrez/*.jpg`
 - **Output:** `calibracionCamara/parametrosCorreccion/calibracion_params.npz`
@@ -134,7 +134,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `02_DistorcionCorrection_Ajedrez.py`
+#### `02_distortionCorrection_chessboard.py`
 
 - **Input:** `all/*.jpg`
 - **Output:** `noDistorcion/`
@@ -146,7 +146,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Colorimetric correction
 
-#### `03_ObtenerMascara_ColorCard.py`
+#### `03_getMask_colorCard.py`
 
 - **Input:** `calibracionCamara/colorCard/colorCard.jpg`
 - **Output:** `calibracionCamara/colorCard/colorCard_mask.png`
@@ -157,7 +157,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `04_ColorCorrection_ByMask.py`
+#### `04_colorCorrection_byMask.py`
 
 - **Input:** `noDistorcion/` + `colorCard_mask.png`
 - **Output:** `colorCorrejidas/`
@@ -169,9 +169,9 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Scale, AOI and mask
 
-#### `05_ConocerEscalas.py`
+#### `05_setScales.py`
 
-- **Input:** Reference image
+- **Input:** Reference image (Element with a known size, e.g., a chessboard previously used.)
 - **Output:** `calibracionCamara/factorEscala/factor_escala.json`
 - **Notes:** Run interactively — click two points on the reference image and enter the real distance in mm.
 
@@ -180,7 +180,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `06_CutImagesApp.py`
+#### `06_cutImages_app.py`
 
 - **Input:** `colorCorrejidas/`
 - **Output:** `areaInteres/`
@@ -191,7 +191,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `07_ApplyMaskApp.py`
+#### `07_applyMask_app.py`
 
 - **Input:** `areaInteres/` or `colorCorrejidas/`
 - **Output:** same folder (in-place)
@@ -204,7 +204,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Morphometric analysis
 
-#### `08_analisisMorfometria.py`
+#### `08_morphometricAnalysis.py`
 
 - **Input:** `areaInteres/`
 - **Output:** `Morfometria/metricasCompletas.csv`; `Binarizadas/`; `Segmentadas/`; `Resultados/`
@@ -215,7 +215,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `09_summarizeMorfometria.py`
+#### `09_summarizeMorphometrics.py`
 
 - **Input:** `Morfometria/metricasCompletas.csv`
 - **Output:** `Morfometria/metricasCompletas_summary.csv`
@@ -227,7 +227,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Colorimetric analysis
 
-#### `10.0_extraerColor_Kmeans.py`
+#### `10.0_extractColor_kmeans.py`
 
 - **Input:** `Segmentadas/`
 - **Output:** `Colorimetria/analisis_colores.csv`
@@ -251,7 +251,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Shape analysis
 
-#### `11.0_filtrarBinarizadas.py`
+#### `11.0_filterBinarized.py`
 
 - **Input:** `Binarizadas/`
 - **Output:** `binarizadasFiltradas/`
@@ -262,7 +262,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `11.1_alinearFormas.py`
+#### `11.1_alignShapes.py`
 
 - **Input:** `binarizadasFiltradas/`
 - **Output:** `binarizadasAlineadas/`
@@ -273,7 +273,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `11.2_formaPromedio.py`
+#### `11.2_averageShape.py`
 
 - **Input:** `binarizadasAlineadas/`
 - **Output:** `formaPromedio/efa_coefficients_all_images.csv`; PNG visualisations
@@ -286,7 +286,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Distances, clustering and integration
 
-#### `12_formasDistance.py`
+#### `12_shapesDistance.py`
 
 - **Input:** `formaPromedio/efa_coefficients_all_images.csv` + morphometry summary
 - **Output:** `formasDistance/shapes_distance_matrix.csv`; heatmap and dendrogram PNG
@@ -307,7 +307,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `14_clusterFormasFormayMorfometríaIntegradaIntegrada.py`
+#### `14_clusterShape_morphometricIntegrated.py`
 
 - **Input:** EFA coefficients + morphometry summary
 - **Output:** `clusterIntegrado/` (PCA plots, cluster assignments)
@@ -320,7 +320,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ### Seed counting and field book merge
 
-#### `15_contadorSemillas.py`
+#### `15_countSeeds.py`
 
 - **Input:** `areaInteres/`
 - **Output:** `conteo/reporte_YYYYMMDD_HHMMSS.csv`
@@ -331,7 +331,7 @@ Each script reads its inputs from the folders produced by the previous step and 
 
 ---
 
-#### `16_unirDatosconLibroCampo.py`
+#### `16_joinData_fieldBook.py`
 
 - **Input:** morphometry + colour + shape + conteo CSVs + `libroCampo/libroCampo.csv`
 - **Output:** `resultadosUnidos/metricasCompletasSemillas_*.csv`
@@ -412,7 +412,7 @@ Scripts 10.1 and 12 expect images named as `in_row=NNNN.jpg` or `in_row=NNNN_2.j
 
 If you use this pipeline in your research, please cite:
 
-> Alliance Bioversity International and CIAT — Bean Breeding Program (2025). *Seeds_Pipeline: A modular Python pipeline for digital phenotyping of Phaseolus spp. seeds*. Palmira, Colombia.
+> Alliance Bioversity International and CIAT — Bean Breeding Program (2025). *Seeds_Pipeline: A modular Python pipeline for digital phenotyping of Phaseolus spp. seeds — extracting morphometric traits, color profiles, shape descriptors (EFA), and hierarchical clustering from image data*. Palmira, Colombia.
 
 Relevant methodological references:
 
