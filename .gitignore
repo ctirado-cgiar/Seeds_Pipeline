@@ -1,15 +1,45 @@
-# Entorno virtual 
-venv/ 
-# Datos locales y carpetas de trabajo 
-Trials/ 
-Test/ 
-Flowers_Processing/ 
-# Archivos de configuraci¢n sensibles 
-.env 
-scripts/.env 
-# Archivos pesados o temporales 
-scripts.zip 
-color_spaces_all_channels_4_3.png 
-# Python cache 
-__pycache__/ 
-*.pyc 
+# Entornos virtuales
+venv/
+env/
+.env
+*.env
+
+# Variables de entorno
+.env
+scripts/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Datos y resultados (carpetas pesadas)
+Trials/
+Trial/
+Test/
+docs/
+Flowers_Processing/
+sample_data/
+
+# Im√°genes y archivos grandes
+*.zip
+*.mp4
+*.avi
+*.png
+*.jpg
+*.jpeg
+*.tiff
+*.tif
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
