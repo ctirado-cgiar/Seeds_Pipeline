@@ -10,6 +10,9 @@
 Quedan guardados en `parametros_usados.json` de cada ensayo: umbral Cr (`THRESHOLD`=127), contraste, desenfoque, filtros de objeto, k de color (2), armónicos EFA, etc.
 
 ## Cambios de método
+- Haralick (08): se calcula solo con los píxeles de cada objeto, sin fondo (GLCM de 32 niveles, 4 direcciones, distancia 1, como EBImage/pliman). Antes se calculaba sobre la imagen completa y los valores seguían al área (r = -1.00 con `ASM`).
+- Circularidad (08), definiciones de pliman: `Circ` = P²/A (≥ 4π); `Circ_norm` = `Form_factor` = 4πA/P² (0 a 1, 1 = círculo). Antes `Circ` era 4πA/P² y `Circ_norm` su inverso.
+- Perímetro suavizado, área por `contourArea`, radios y ejes quedan como estaban.
 - Perímetro: Douglas-Peucker a 1 px (como FenotIT). Circularidad y columnas derivadas cambian (`P` -4.6 %, `Circ` +9.9 %).
 - Color: K-means (k=2) por semilla con anillo de borde, método de FenotIT; ya no se descartan píxeles ≥245.
 - Distancia de color: EMD exacta en RGB (antes daba 0 con la misma paleta y proporciones invertidas).
