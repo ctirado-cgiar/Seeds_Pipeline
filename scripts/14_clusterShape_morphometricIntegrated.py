@@ -14,13 +14,17 @@ import warnings
 warnings.filterwarnings('ignore')
 
 load_dotenv()
+import common
+if not common.show_plots():
+    plt.switch_backend('Agg')
+
+MAX_CLUSTERS = common.param('MAX_CLUSTERS', 6)    # máximo de clusters a evaluar (silhouette)
+N_COMPONENTS = common.param('N_COMPONENTS', 10)  # máximo de componentes principales
 
 class IntegratedMorphometricAnalysis:
     """Análisis integrado: Forma (EFA) + Morfometría completa"""
     
-    def __init__(self, input_folder, metrics_path, output_folder):
-        self.input_folder = input_folder
-        self.metrics_path = metrics_path
+    def __init__(self, output_folder):
         self.output_folder = output_folder
         os.makedirs(output_folder, exist_ok=True)
         
@@ -30,25 +34,11 @@ class IntegratedMorphometricAnalysis:
         
     def load_and_integrate_data(self):
         """Carga y combina EFA + métricas morfométricas completas"""
-        # Coeficientes EFA
-        efa_path = os.path.join(self.input_folder, 'efa_coefficients_all_images.csv')
-        efa_df = pd.read_csv(efa_path)
-        
-        # Métricas morfométricas completas
-        metrics_df = pd.read_csv(self.metrics_path)
-        
-        # Aplanar columnas multi-nivel si es necesario
-        if isinstance(metrics_df.columns, pd.MultiIndex):
-            metrics_df.columns = ['_'.join(col).strip() if col[1] else col[0] 
-                                 for col in metrics_df.columns.values]
-        
-        # Renombrar columna de imagen para match
-        if 'Img' in metrics_df.columns:
-            metrics_df = metrics_df.rename(columns={'Img': 'image_name'})
-        
-        # Combinar por nombre de imagen
-        self.data = pd.merge(efa_df, metrics_df, on='image_name', how='inner')
-        
+        # Morfometría (resumen por foto) + coeficientes EFA + libro de campo, por clave de imagen.
+        # 'image_name' pasa a ser la etiqueta de la muestra (Line_Env_REP_In_row o la clave).
+        self.data = common.load_samples(('morfometria', 'formas'))
+        self.data['image_name'] = common.make_labels(self.data)
+
         if len(self.data) == 0:
             raise ValueError("No se pudo combinar EFA con métricas. Verifica nombres de imagen.")
         
@@ -56,7 +46,8 @@ class IntegratedMorphometricAnalysis:
         self.genotypes = self.data['image_name'].values
         
         # Columnas EFA
-        self.efa_cols = [col for col in self.data.columns if col.startswith('H')]
+        self.efa_cols = [col for col in self.data.columns
+                         if col.startswith('H') and len(col) > 1 and col[1].isdigit()]
         
         # Columnas de métricas morfométricas (solo mean para reducir dimensionalidad)
         # Seleccionar las más importantes
@@ -411,11 +402,8 @@ def main():
     print("ANÁLISIS C: INTEGRADO (FORMA + MORFOMETRÍA)")
     print("="*60 + "\n")
     
-    input_folder = os.getenv('RUTA') + '/resultadosUnidos'
-    metrics_path = os.getenv('RUTA') + '/resultadosUnidos/metricasCompletasSemillas_Color-Morfologia-Forma_GGR_2025_ANALISIS_20260310.csv'
-    output_folder = os.getenv('RUTA') + '/analisisFormasIntegrado'
-    
-    analyzer = IntegratedMorphometricAnalysis(input_folder, metrics_path, output_folder)
+    output_folder = common.path('analisisFormasIntegrado')
+    analyzer = IntegratedMorphometricAnalysis(output_folder)
     
     # Cargar datos
     print("Cargando datos integrados...", end=' ')
@@ -423,10 +411,13 @@ def main():
     print(f"✓ ({len(analyzer.genotypes)} genotipos, {len(analyzer.feature_names)} features)")
     print(f"  - EFA: {analyzer.n_efa} coeficientes")
     print(f"  - Morfometría: {analyzer.n_morph} variables\n")
+    common.log_params('14_clusterShape_morphometricIntegrated', dict(MAX_CLUSTERS=MAX_CLUSTERS,
+                      N_COMPONENTS=N_COMPONENTS, n_efa=analyzer.n_efa, n_morfometria=analyzer.n_morph,
+                      muestras=len(analyzer.genotypes), escalado='z-score', clustering='ward / average'))
     
     # PCA
     print("Ejecutando PCA integrado...", end=' ')
-    n_components = min(10, len(analyzer.genotypes) - 1)
+    n_components = min(N_COMPONENTS, len(analyzer.genotypes) - 1)
     analyzer.perform_pca(n_components=n_components)
     print(f"✓ ({n_components} PCs)")
     
@@ -442,7 +433,7 @@ def main():
     
     # Silhouette
     if len(analyzer.genotypes) > 2:
-        best_k = analyzer.plot_silhouette_analysis(max_clusters=min(6, len(analyzer.genotypes)-1))
+        best_k = analyzer.plot_silhouette_analysis(max_clusters=min(MAX_CLUSTERS, len(analyzer.genotypes)-1))
         
         # Dendrogramas
         cluster_df = analyzer.plot_dendrogram_with_clusters(method='ward', n_clusters=best_k)

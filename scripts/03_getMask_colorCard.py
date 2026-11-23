@@ -1,7 +1,5 @@
 # 03_getMask_colorCard.py
-from turtle import pos
-
-from networkx import radius
+import common
 from plantcv import plantcv as pcv
 import numpy as np
 import cv2
@@ -12,14 +10,14 @@ load_dotenv()
 print(f"Versión de plantcv: {pcv.__version__}")  # creado bajo la 4.46
 
 # Configuración de parámetros para plantcv
-pcv.params.debug = "none"  # Mostrar imágenes intermedias para depuración
+pcv.params.debug = "plot"  # Mostrar imágenes intermedias para depuración
 pcv.params.dpi = 96       # Resolución de las imágenes en dpi
 pcv.params.text_size = 1    # Tamaño del texto en las imágenes
 pcv.params.text_thickness = 1  # Grosor del texto en las imágenes
 pcv.params.sample_label = "B73"  # Asignar una etiqueta a la muestra
 
-radius = 6  # Ajusta este valor según el tamaño de la tarjeta en la imagen (en píxeles)
-pos = 3     # Posición de la tarjeta de color (1, 2 o 3) para std_color_matrix()
+radius = common.param('RADIUS', 6)  # Ajusta este valor según el tamaño de la tarjeta en la imagen (en píxeles)
+pos = common.param('POS', 3)     # Posición de la tarjeta de color (1, 2 o 3) para std_color_matrix()
 
 # Ruta de la imagen donde se ve la tarjeta de color
 ruta_imagen = os.getenv('RUTA') + '/calibracionCamara/colorCard/colorCard.jpg'
@@ -64,9 +62,6 @@ if card_matrix.shape != std_color_matrix.shape:
 # Aplicar la corrección de color a la imagen completa
 img_corregida = pcv.transform.affine_color_correction(rgb_img=img, source_matrix=card_matrix, 
                                                       target_matrix=std_color_matrix)
-
-# Mostrar la imagen corregida
-pcv.plot_image(img_corregida)
 
 # Guardar la imagen corregida
 ruta_guardado = os.getenv('RUTA') + '/calibracionCamara/colorCard/colorCard.png'

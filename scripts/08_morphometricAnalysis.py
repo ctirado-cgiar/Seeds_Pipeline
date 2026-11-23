@@ -9,6 +9,17 @@ from scipy.spatial import distance
 from skimage.feature import graycomatrix, graycoprops
 from dotenv import load_dotenv
 load_dotenv()
+import common
+
+# ── Parámetros de segmentación (el orquestador los exporta como ORC_<NOMBRE>) ──
+# Binarización: canal Cr (YCrCb) → contraste (alpha, beta) → desenfoque gaussiano → umbral.
+THRESHOLD       = common.param('THRESHOLD', 127)       # umbral sobre Cr tras el contraste
+CONTRAST_ALPHA  = common.param('CONTRAST_ALPHA', 1.03)
+CONTRAST_BETA   = common.param('CONTRAST_BETA', 1.4)
+BLUR_SIGMA      = common.param('BLUR_SIGMA', 1.9)
+CLEAN_MIN_AREA  = common.param('CLEAN_MIN_AREA', 500)  # px²: blobs menores se borran antes de medir
+CLOSE_ITER      = common.param('CLOSE_ITER', 3)        # cierre morfológico (elipse 3x3)
+FILTERS         = common.object_filters()              # AREA/ANCHO/LARGO min-max (px)
 
 # Función para aumentar contraste
 def mejorar_contraste(imagen, alpha=1.1, beta=0):
@@ -30,7 +41,8 @@ def eliminar_extension_imagen(nombre_archivo):
             return nombre_archivo[:-len(ext)]
     return nombre_archivo
 
-def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json'):
+def cargar_factor_escala(ruta=None):
+    ruta = ruta or common.path('calibracionCamara', 'factorEscala', 'factor_escala.json')
     # Intenta cargar el factor desde el JSON
     try:
         with open(ruta, 'r') as f:
@@ -44,13 +56,7 @@ def cargar_factor_escala(ruta=os.getenv('RUTA') + '/calibracionCamara/factorEsca
 
 def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escritor_csv, factor_escala=None):
     if factor_escala is None:
-        # Intenta cargar el factor desde el JSON
-        try:
-            with open('factor_escala.json', 'r') as f:
-                factor_escala = json.load(f)['factor_escala']
-        except FileNotFoundError:
-            print("¡Advertencia! No se encontró factor de escala. Usando píxeles.")
-            factor_escala = 1.0
+        factor_escala = cargar_factor_escala()
 
     contornos, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     imagen_contornos = imagen_original.copy()
@@ -59,14 +65,14 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
     for i, contorno in enumerate(contornos):
         # Filtro de area
         area = cv2.contourArea(contorno)
-        if area < 200 or area > 12000:
+        if area < FILTERS['AREA_MIN'] or area > FILTERS['AREA_MAX']:
             continue
         # Rectángulo mínimo
         rect = cv2.minAreaRect(contorno)
         (x, y), (w, h), angulo = rect
         w, h = (h, w) if w > h else (w, h)
         # Filtro de dimensiones
-        if w < 5 or w > 105 or h < 10 or h > 190:
+        if not common.passes_filters(area, w, h, FILTERS):
             continue
 
         # Cálculo del centro de masa
@@ -75,9 +81,12 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         cy = int(M["m01"]/M["m00"]) if M["m00"] != 0 else 0
         
         # Métricas básicas
-        perimetro = cv2.arcLength(contorno, True)
+        # Perímetro: contorno simplificado con Douglas-Peucker a 1 px (como FenotIT), que quita
+        # el escalonado de la cuadrícula de píxeles. El área sigue siendo la del contorno.
+        perimetro = cv2.arcLength(cv2.approxPolyDP(contorno, 1.0, True), True)
         hull = cv2.convexHull(contorno)
         area_ch = cv2.contourArea(hull)
+        perimetro_hull = cv2.arcLength(hull, True)
 
         # Usamos el convex hull para mayor eficiencia
         hull_points = hull[:, 0, :] if len(hull) > 1 else contorno[:, 0, :]
@@ -102,14 +111,14 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         diam_max = h
         radius_ratio = radio_max/radio_min
         theta = (180/np.pi)*(np.radians(angulo))
-        form_factor = (4 * np.pi * area) / (perimetro**2) if perimetro > 0 else 0
+        circularity = min(1.0, (4 * np.pi * area) / (perimetro**2)) if perimetro > 0 else 0
+        form_factor = circularity   # misma fórmula que Circ (se conserva la columna por compatibilidad)
         narrow_factor = caliper / h
         rectangularity = (h * w) / area if area > 0 else 0
         pd_ratio = perimetro / caliper if caliper > 0 else 0
         plw_ratio = perimetro / (h + w) if (h + w) > 0 else 0
-        convexity = cv2.arcLength(hull, True) / perimetro if perimetro > 0 else 0
+        convexity = min(1.0, perimetro_hull / perimetro) if perimetro > 0 else 0
         solidez = area / area_ch if area_ch > 0 else 0
-        circularity = (4 * np.pi * area) / (perimetro**2) if perimetro > 0 else 0
         circularity_norm = (perimetro**2) / (4 * np.pi * area) if area > 0 else 0
         # Haralick circularity (distancia media al centroide)
         distancias = [distance.euclidean((cx, cy), point[0]) for point in contorno]
@@ -204,24 +213,22 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
 def main():
     # Configuración de directorios
     carpetas = {
-        "input"     :   os.getenv('RUTA') + '/areaInteres',
-        "binarized" :   os.getenv('RUTA') + '/Binarizadas',
-        "segmented" :   os.getenv('RUTA') + '/Segmentadas',
-        "results"   :   os.getenv('RUTA') + '/Morfometria'
+        "input"     :   common.path('areaInteres'),
+        "binarized" :   common.path('Binarizadas'),
+        "segmented" :   common.path('Segmentadas'),
+        "results"   :   common.path('Morfometria')
     }
     # Crear todas las carpetas
     for dir in carpetas.values():
         os.makedirs(dir, exist_ok=True)
 
     # Cargar factor de escala desde JSON
-    try:
-        with open(os.getenv('RUTA') + '/calibracionCamara/factorEscala/factor_escala.json', 'r') as f:
-            factor_data = json.load(f)
-            factor_escala = factor_data['factor_escala']
-            print(f"Factor de escala cargado: {factor_escala:.7f} mm/px")
-    except FileNotFoundError:
-        factor_escala = 1.0
-        print("¡Advertencia! No se encontró factor_escala.json. Usando 1.0 (trabajando en píxeles)")
+    factor_escala = cargar_factor_escala()
+    print(f"Factor de escala: {factor_escala:.7f} mm/px")
+    common.log_params('08_morphometricAnalysis', dict(
+        THRESHOLD=THRESHOLD, CONTRAST_ALPHA=CONTRAST_ALPHA, CONTRAST_BETA=CONTRAST_BETA,
+        BLUR_SIGMA=BLUR_SIGMA, CLEAN_MIN_AREA=CLEAN_MIN_AREA, CLOSE_ITER=CLOSE_ITER,
+        factor_escala_mm_px=factor_escala, **FILTERS))
 
     # Ruta del CSV en carpeta Results
     csv_path = os.path.join(carpetas["results"], "metricasCompletas.csv")
@@ -252,13 +259,13 @@ def main():
             if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
                 img = cv2.imread(os.path.join(carpetas["input"], archivo))
                 ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-                cr = mejorar_contraste(ycrcb[:,:,1], alpha=1.03, beta=1.4)
-                cr = cv2.GaussianBlur(cr, (5,5), 1.9)
-                _, binaria = cv2.threshold(cr, 127, 255, cv2.THRESH_BINARY)
-                binaria = eliminar_objetos_pequenos(binaria, 500)
+                cr = mejorar_contraste(ycrcb[:,:,1], alpha=CONTRAST_ALPHA, beta=CONTRAST_BETA)
+                cr = cv2.GaussianBlur(cr, (5,5), BLUR_SIGMA)
+                _, binaria = cv2.threshold(cr, THRESHOLD, 255, cv2.THRESH_BINARY)
+                binaria = eliminar_objetos_pequenos(binaria, CLEAN_MIN_AREA)
                 # Operaciones morfológicas para mejorar la segmentación
                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-                binaria = cv2.morphologyEx(binaria, cv2.MORPH_CLOSE, kernel, iterations=3) #12
+                binaria = cv2.morphologyEx(binaria, cv2.MORPH_CLOSE, kernel, iterations=CLOSE_ITER)
                 cv2.imwrite(os.path.join(carpetas["binarized"], archivo), binaria)
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 img_contornos = procesar_imagen_binarizada(binaria, archivo, img_rgb, escritor, factor_escala)

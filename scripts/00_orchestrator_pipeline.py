@@ -69,13 +69,13 @@ STEPS = [
     {"id":"10_0","name":"Extracción de Color por K-means",
      "script":"10.0_extractColor_kmeans.py","enabled":True,
      "params":{"N_COLORS":{"label":"Colores dominantes K","type":"int","default":2},
-               "EROSION_ITERATIONS":{"label":"Iteraciones erosión","type":"int","default":3},
-               "KERNEL_SIZE":{"label":"Kernel erosión (px)","type":"int","default":7}}},
+               "EDGE_TRIM":{"label":"Borde a quitar (px, -1 = auto)","type":"int","default":-1}}},
     {"id":"10_1","name":"Distancias de Color (EMD)",
      "script":"10.1_colorDistance.py","enabled":True,"params":{}},
     {"id":"11_0","name":"Filtrar Binarizadas",
      "script":"11.0_filterBinarized.py","enabled":True,
-     "params":{"AREA_MIN_F":{"label":"Área mínima (px²)","type":"int","default":200},
+     "params":{"AR_MAX_F":{"label":"Relación largo/ancho máx. (0 = sin filtro)","type":"float","default":2.2},
+               "AREA_MIN_F":{"label":"Área mínima (px²)","type":"int","default":200},
                "AREA_MAX_F":{"label":"Área máxima (px²)","type":"int","default":10000},
                "ANCHO_MIN_F":{"label":"Ancho mínimo (px)","type":"int","default":5},
                "ANCHO_MAX_F":{"label":"Ancho máximo (px)","type":"int","default":105},
@@ -94,7 +94,7 @@ STEPS = [
      "script":"12_shapesDistance.py","enabled":True,
      "params":{"USE_EFA":{"label":"Incluir EFA en distancias","type":"bool","default":True}}},
     {"id":"13","name":"Exportar Dendrogramas a JSON",
-     "script":"13_linkage2Json.py","enabled":True,
+     "script":"13_linkage2json.py","enabled":True,
      "params":{"LINKAGE_METHOD":{"label":"Método linkage","type":"str","default":"average"}}},
     {"id":"14","name":"Clusterización Integrada",
      "script":"14_clusterShape_morphometricIntegrated.py","enabled":True,
@@ -619,8 +619,9 @@ class OrchestratorApp(tk.Tk):
                 self._set_st(step["id"],"omitido")
                 self.after(0, lambda v=i+1: self._upd(v,total)); continue
             env = os.environ.copy(); env["RUTA"] = self.ruta
-            for meta in step.get("params",{}).values():
-                k = meta.get("key", list(step["params"].keys())[0])
+            # Cada parámetro del paso se exporta con su propio nombre (ORC_<NOMBRE>);
+            # los scripts lo leen con common.param(). Antes se exportaba siempre el primero.
+            for k, meta in step.get("params",{}).items():
                 env[f"ORC_{k}"] = str(self.param_values.get(k, meta["default"]))
             self._set_st(step["id"],"ejecutando")
             self.after(0, lambda v=i+1: self._upd(v,total))

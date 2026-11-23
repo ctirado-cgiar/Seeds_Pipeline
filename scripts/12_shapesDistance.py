@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import common
+if not common.show_plots():
+    plt.switch_backend('Agg')
 
 '''
 Distancia morfométrica (Forma + EFA + Haralick)
@@ -17,17 +20,16 @@ Distancia: Euclidiana normalizada (Z-score) sobre variables seleccionadas.
 Etiquetas: Line_Env_REP_usada_In_row
 '''
 
-BASE = os.getenv('RUTA')
+BASE = common.get_ruta()
+os.makedirs(BASE + '/formasDistance', exist_ok=True)
 
 # ==========================================
 # ⚙️  CONFIGURACIÓN
 # ==========================================
 
-csv_path = BASE + '/formasDistance/coloresMorfologiaFormas_Rep-1_Env-ALL_GGR_2025_ANALISIS_20260312.csv'
-
-# Columnas que forman la etiqueta
-LABEL_COLS = ['Line', 'Env', 'REP_usada', 'In_row']
-LABEL_SEP  = '_'
+# Entrada: Morfometria/metricasCompletas_summary.csv + formaPromedio/efa_coefficients_all_images.csv
+# (+ libro de campo si existe). Etiqueta: columnas Line, Env, REP_usada, In_row que existan
+# (LABEL_COLS para cambiarlas); si no hay libro de campo, la clave de imagen.
 
 # Variables morfométricas a usar
 # ── Morfometría clásica ──────────────────────────────────────
@@ -50,21 +52,19 @@ HARALICK_COLS = [
 # ── Coeficientes EFA (H1_A ... H10_D) ───────────────────────
 # Se detectan automáticamente — cambia a [] para excluirlos
 EFA_PATTERN = 'H'   # columnas que empiecen por H seguidas de dígito
-USE_EFA = True
+USE_EFA = common.param('USE_EFA', True)
 
 # ==========================================
 # PASO 1: CARGAR Y CONSTRUIR ETIQUETAS
 # ==========================================
 
-df = pd.read_csv(csv_path)
+df = common.load_samples(('morfometria', 'formas'))
 
 print("Datos cargados:")
 print(df.head(3))
 print(f"\nForma: {df.shape}")
 
-df['label'] = df[LABEL_COLS].astype(str).apply(
-    lambda row: LABEL_SEP.join(row.values), axis=1
-)
+df['label'] = common.make_labels(df)
 
 dupes = df['label'].duplicated()
 if dupes.any():
@@ -94,6 +94,9 @@ print(f"  Morfometría : {len(morph_ok)} columnas")
 print(f"  Haralick    : {len(haralick_ok)} columnas")
 print(f"  EFA         : {len(efa_ok)} columnas")
 print(f"  TOTAL       : {len(feature_cols)} columnas")
+common.log_params('12_shapesDistance', dict(USE_EFA=USE_EFA, n_morfometria=len(morph_ok),
+                  n_haralick=len(haralick_ok), n_efa=len(efa_ok), normalizacion='z-score',
+                  distancia='euclidea', muestras=len(df)))
 
 # Verificar NaNs en features
 nan_mask = df[feature_cols].isna().any(axis=1)
@@ -155,7 +158,7 @@ distance_df = pd.DataFrame(distance_matrix, index=labels, columns=labels)
 print("\nMatriz (preview):")
 print(distance_df.iloc[:4, :4])
 
-out_matrix = BASE + '/formasDistance/shapes_distance_Rep-1_matrix.csv'
+out_matrix = BASE + '/formasDistance/shapes_distance_matrix.csv'
 distance_df.to_csv(out_matrix)
 print(f"\n✓ Matriz guardada: {out_matrix}")
 
@@ -184,10 +187,10 @@ plt.title('Shape Distance Matrix (Euclidean norm.)', fontsize=14, pad=20)
 plt.xticks(fontsize=tick_size, rotation=90)
 plt.yticks(fontsize=tick_size, rotation=0)
 plt.tight_layout()
-out_heatmap = BASE + '/formasDistance/shapes_distance_heatmap_Rep-1.png'
+out_heatmap = BASE + '/formasDistance/shapes_distance_heatmap.png'
 plt.savefig(out_heatmap, dpi=300, bbox_inches='tight')
 print(f"✓ Heatmap guardado: {out_heatmap}")
-plt.show()
+common.finish_figure(plt)
 
 # — Dendrograma —
 # Forzar simetría perfecta (mismo fix que EMD colores)
@@ -196,7 +199,7 @@ np.fill_diagonal(distance_matrix, 0)
 print(f"✓ Simetría forzada — asimetría residual: {np.max(np.abs(distance_matrix - distance_matrix.T)):.2e}")
 
 condensed      = squareform(distance_matrix, checks=False)
-linkage_matrix = linkage(condensed, method='average')
+linkage_matrix = linkage(condensed, method=common.param('LINKAGE_METHOD', 'ward'))
 
 fig_w = max(14, n_labels * 0.4)
 plt.figure(figsize=(fig_w, 6))
@@ -210,10 +213,10 @@ plt.title('Hierarchical Clustering by Shape (Euclidean norm.)', fontsize=14, pad
 plt.xlabel('Genotipo', fontsize=12)
 plt.ylabel('Distancia', fontsize=12)
 plt.tight_layout()
-out_dendro = BASE + '/formasDistance/shapes_dendrogram_Rep-1.png'
+out_dendro = BASE + '/formasDistance/shapes_dendrogram.png'
 plt.savefig(out_dendro, dpi=300, bbox_inches='tight')
 print(f"✓ Dendrograma guardado: {out_dendro}")
-plt.show()
+common.finish_figure(plt)
 
 # ==========================================
 # PASO 6: ESTADÍSTICAS Y PAIRWISE
@@ -247,7 +250,7 @@ print(distance_pairs.head(5).to_string(index=False))
 print("\n5 pares MÁS DIFERENTES (forma):")
 print(distance_pairs.tail(5).to_string(index=False))
 
-out_pairs = BASE + '/formasDistance/shapes_pairwise_Rep-1.csv'
+out_pairs = BASE + '/formasDistance/shapes_distances_pairwise.csv'
 distance_pairs.to_csv(out_pairs, index=False)
 print(f"\n✓ Pares guardados: {out_pairs}")
 

@@ -7,17 +7,18 @@ from skimage.measure import regionprops, label
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import common
 
 # Configuración de paths
 
-input_folder = os.getenv('RUTA') + '/binarizadasFiltradas'
-output_folder = os.getenv('RUTA') + '/binarizadasAlineadas'
+input_folder = common.path('binarizadasFiltradas')
+output_folder = common.path('binarizadasAlineadas')
 os.makedirs(output_folder, exist_ok=True)
 #input_folder = "D:/OneDrive - CGIAR/Frijol/Metodologias/Seeds_Pipeline/AOI_Cu/Binarized"
 #output_folder = "D:/OneDrive - CGIAR/Frijol/Metodologias/Seeds_Pipeline/06_FormasAnalisis/Images"
 
 # Parámetros de la rejilla
-grid_cols = 8  # Número de columnas en la rejilla
+grid_cols = common.param('GRID_COLS', 8)  # Número de columnas en la rejilla
 margin = 10     # Espacio entre semillas en píxeles
 bg_color = 0    # Color de fondo (negro para imágenes binarias)
 

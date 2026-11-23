@@ -32,15 +32,28 @@ from scipy.spatial import procrustes
 from dotenv import load_dotenv
 
 load_dotenv()
+import common
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNCIÓN AUXILIAR
+# ─────────────────────────────────────────────────────────────────────────────
+
+def eliminar_extension_imagen(nombre_archivo):
+    """Elimina extensiones de imagen del nombre del archivo."""
+    extensiones = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif')
+    for ext in extensiones:
+        if nombre_archivo.lower().endswith(ext):
+            return nombre_archivo[:-len(ext)]
+    return nombre_archivo
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARÁMETROS — ajustar según el conjunto de imágenes
 # ─────────────────────────────────────────────────────────────────────────────
 
-N_HARMONICS = 20      # Número de armónicos EFA. 20 es suficiente para semillas;
+N_HARMONICS = common.param('N_HARMONICS', 20)      # Número de armónicos EFA. 20 es suficiente para semillas;
                       # aumentar si las formas tienen detalles muy finos.
 
-N_POINTS    = 128     # Puntos por contorno tras normalización.
+N_POINTS    = common.param('N_POINTS', 128)     # Puntos por contorno tras normalización.
                       # Debe ser >= 2 * N_HARMONICS (regla de Nyquist).
 
 MIN_AREA    = 100     # Área mínima en px² para considerar una región como semilla.
@@ -49,11 +62,11 @@ MIN_AREA    = 100     # Área mínima en px² para considerar una región como s
 MAX_AREA    = None    # Área máxima en px². None = sin límite superior.
                       # Útil para excluir regiones grandes no deseadas.
 
-MIN_SOLIDITY    = 0.90  # Solidity mínima (área real / área convexa).
+MIN_SOLIDITY    = common.param('MIN_SOLIDITY', 0.90)  # Solidity mínima (área real / área convexa).
                         # Semillas pegadas tipo "8" tienen concavidad → valor bajo.
                         # Bajar a ~0.85 si tus semillas tienen forma naturalmente cóncava.
 
-MIN_CIRCULARITY = 0.55  # Circularidad mínima (4π·A / P²). 1.0 = círculo perfecto.
+MIN_CIRCULARITY = common.param('MIN_CIRCULARITY', 0.55)  # Circularidad mínima (4π·A / P²). 1.0 = círculo perfecto.
                         # Bajar a ~0.45 si las semillas son muy alargadas (ej. arroz).
 
 GPA_MAX_ITER = 20     # Iteraciones máximas del GPA. Converge típicamente en < 10.
@@ -296,7 +309,8 @@ class SeedMorphometrics:
         Ejecuta el pipeline completo para una imagen.
         Retorna dict con todos los resultados, o None si no hay semillas válidas.
         """
-        name = os.path.splitext(os.path.basename(image_path))[0]
+        filename = os.path.basename(image_path)
+        name = eliminar_extension_imagen(filename)
 
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
@@ -543,8 +557,11 @@ def plot_all_averages(all_results, output_folder, analyzer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    input_folder  = os.getenv('RUTA') + '/binarizadasAlineadas'
-    output_folder = os.getenv('RUTA') + '/formaPromedio'
+    input_folder  = common.path('binarizadasAlineadas')
+    output_folder = common.path('formaPromedio')
+    common.log_params('11.2_averageShape', dict(N_HARMONICS=N_HARMONICS, N_POINTS=N_POINTS,
+                      MIN_SOLIDITY=MIN_SOLIDITY, MIN_CIRCULARITY=MIN_CIRCULARITY,
+                      MIN_AREA=MIN_AREA, MAX_AREA=MAX_AREA, GPA_MAX_ITER=GPA_MAX_ITER, GPA_TOL=GPA_TOL))
     os.makedirs(output_folder, exist_ok=True)
 
     image_paths = sorted(
