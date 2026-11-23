@@ -35,56 +35,8 @@ FUENTES = {
 # NORMALIZACIÓN DE CLAVES
 # ==========================================
 
-def normalizar_clave(valor):
-    """
-    Extrae el número base del nombre de imagen.
-
-    Ejemplos:
-      in_row=1224.jpg   → '1224'
-      in_row=1234_2.jpg → '1234'   (rep fotográfica, se descarta sufijo)
-      in_row=1234-2.jpg → '1234'
-      1224.jpg          → '1224'
-      1224              → '1224'
-      G4001.jpg         → 'G4001'  (nombres alfanuméricos sin prefijo in_row=)
-    """
-    s = str(valor).strip()
-
-    # Quitar prefijo in_row= o In_row= si existe
-    s = re.sub(r'(?i)^in_row=', '', s)
-
-    # Quitar extensión de imagen
-    s = re.sub(r'\.(jpg|jpeg|png|tif|tiff|bmp)$', '', s, flags=re.IGNORECASE)
-
-    # Quitar sufijo de repetición fotográfica: _1, _2, _3, -1, -2, -3, etc.
-    # Solo si el cuerpo antes del sufijo es puramente numérico
-    m = re.match(r'^(\d+)[_-]\d+$', s)
-    if m:
-        s = m.group(1)
-
-    return s.strip()
-
-
-def es_imagen_principal(valor):
-    """
-    Retorna True si la imagen es la principal (sin sufijo o con sufijo _1/-1).
-    False si es repetición fotográfica _2, _3, etc.
-
-    Ejemplos:
-      1224.jpg      → True   (sin sufijo)
-      1224_1.jpg    → True   (primera toma)
-      1224-1.jpg    → True
-      1224_2.jpg    → False
-      1224-3.jpg    → False
-    """
-    s = str(valor).strip()
-    s = re.sub(r'(?i)^in_row=', '', s)
-    s = re.sub(r'\.(jpg|jpeg|png|tif|tiff|bmp)$', '', s, flags=re.IGNORECASE)
-
-    m = re.match(r'^(\d+)[_-](\d+)$', s)
-    if m:
-        sufijo = int(m.group(2))
-        return sufijo == 1  # solo _1 o -1 es principal
-    return True  # sin sufijo numérico = principal
+# normalizar_clave() y es_imagen_principal() viven en common.py (los usan también 10.1, 12 y 14).
+from common import normalizar_clave, es_imagen_principal
 
 
 # ==========================================

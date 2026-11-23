@@ -1,3 +1,4 @@
+# 13_linkage2json.py
 import pandas as pd
 import numpy as np
 import json
@@ -6,6 +7,7 @@ from scipy.cluster.hierarchy import linkage, to_tree
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import common
 
 BASE = os.getenv('RUTA')
 
@@ -13,9 +15,9 @@ BASE = os.getenv('RUTA')
 Exporta la linkage matrix a un JSON jerárquico compatible con D3.js
 para visualización de dendrograma en el HTML Explorer.
 
-Genera:
-  dendrogram_color.json   ← desde distances pairwise de color
-  dendrogram_shapes.json  ← desde distances pairwise de formas (si existe)
+Lee desde:
+  - Colorimetria/color_distance_matrix_emd.csv  → genera dendrogram_color.json
+  - formasDistance/shapes_distances_pairwise.csv → genera dendrogram_shapes.json
 
 Formato de salida:
 {
@@ -34,18 +36,18 @@ Formato de salida:
 
 FILES = {
     'color': {
-        'input':  BASE + '/colorDistance/distances_pairwise_Rep-1.csv',
-        'output': BASE + '/colorDistance/dendrogram_color_Rep-1.json',
-        'active': False,  # cambia a True si tienes datos de color
+        'input':  os.path.join(BASE, 'colorDistance', 'color_distances_pairwise.csv'),
+        'output': os.path.join(BASE, 'colorDistance', 'dendrogram_color.json'),
+        'active': True,  # Lee de colorDistance/color_distances_pairwise.csv
     },
     'shapes': {
-        'input':  BASE + '/formasDistance/shapes_pairwise_Rep-1.csv',   # <-- ajusta si tienes
-        'output': BASE + '/formasDistance/dendrogram_shapes_Rep-1.json',
-        'active': True,   # cambia a True si tienes datos de formas
+        'input':  os.path.join(BASE, 'formasDistance', 'shapes_distances_pairwise.csv'),
+        'output': os.path.join(BASE, 'formasDistance', 'dendrogram_shapes.json'),
+        'active': True,  # Cambia a True si tienes datos de formas
     },
 }
 
-LINKAGE_METHOD = 'average'   # 'average' = UPGMA, igual al script de EMD
+LINKAGE_METHOD = common.param('LINKAGE_METHOD', 'ward')   # 'average' = UPGMA, igual al script de EMD
                               # otras opciones: 'ward', 'complete', 'single'
 
 # ==========================================
@@ -168,6 +170,7 @@ def export_dendrogram(input_path, output_path, method, label):
 # ==========================================
 
 results = {}
+common.log_params('13_linkage2json', dict(LINKAGE_METHOD=LINKAGE_METHOD))
 
 for key, cfg in FILES.items():
     if not cfg['active']:

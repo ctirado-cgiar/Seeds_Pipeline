@@ -1,201 +1,144 @@
 # 10.1_colorDistance.py
-import pandas as pd
-import numpy as np
-from scipy.spatial.distance import euclidean
-from scipy.optimize import linear_sum_assignment
-import seaborn as sns
-import matplotlib.pyplot as plt
+"""
+Distancia de color entre muestras: Earth Mover's Distance (EMD) exacta en RGB.
+
+Cada muestra (foto) es una "firma": k colores dominantes (RGB 0-255) con su proporción
+(paso 10.0). La EMD (Rubner et al., 2000) es el costo mínimo de transformar la firma de una
+muestra en la de otra moviendo masa de color, con la distancia euclídea en RGB como costo
+unitario. Como las proporciones suman 1, la EMD queda en unidades de RGB (0-441).
+
+A diferencia de la versión anterior (una asignación 1 a 1 con min(peso_i, peso_j)), esta
+resuelve el problema de transporte completo: cuando los pesos difieren, la masa sobrante
+se mueve al color más cercano disponible en vez de ignorarse.
+
+Entrada : Colorimetria/analisis_colores.csv (+ libroCampo/libroCampo.csv si existe)
+Salidas : colorDistance/color_distance_matrix_emd.csv, color_distances_pairwise.csv,
+          color_distance_heatmap.png, color_dendrogram.png
+"""
 import os
-from dotenv import load_dotenv
-load_dotenv()
+import re
 
-BASE = os.getenv('RUTA')
-csv_path = BASE + '/colorDistance/coloresMorfologiaFormas_Rep-1_Env-ALL_GGR_2025_ANALISIS_20260310.csv'
-
-# Columnas para etiqueta
-LABEL_COLS = ['Line', 'Env', 'REP_usada', 'In_row']
-LABEL_SEP  = '_'
-
-# Cargar y construir etiquetas
-df = pd.read_csv(csv_path)
-
-print("Datos cargados:")
-print(df.head(3))
-print(f"\nForma: {df.shape}")
-print(f"Columnas disponibles: {df.columns.tolist()}")
-
-# Construir etiqueta descriptiva
-df['label'] = df[LABEL_COLS].astype(str).apply(
-    lambda row: LABEL_SEP.join(row.values), axis=1
-)
-
-# Verificar que no hay etiquetas duplicadas
-dupes = df['label'].duplicated()
-if dupes.any():
-    print(f"\nEtiquetas duplicadas ({dupes.sum()}) — revisa los datos:")
-    print(df[dupes]['label'].tolist())
-else:
-    print(f"\n✓ Etiquetas únicas: {len(df['label'])} — OK")
-
-print("\nEjemplos de etiquetas:")
-print(df['label'].head(8).tolist())
-
-# Funciones de distancia
-def parse_rgb(rgb_string):
-    rgb_clean = str(rgb_string).strip('()').replace(' ', '')
-    return np.array([int(x) for x in rgb_clean.split(',')])
-
-def emd_distance(img1_data, img2_data):
-    try:
-        colors1 = np.array([
-            parse_rgb(img1_data['RGB1']),
-            parse_rgb(img1_data['RGB2'])
-        ], dtype=float)
-
-        colors2 = np.array([
-            parse_rgb(img2_data['RGB1']),
-            parse_rgb(img2_data['RGB2'])
-        ], dtype=float)
-
-        weights1 = np.array([float(img1_data['1%']), float(img1_data['2%'])]) / 100.0
-        weights2 = np.array([float(img2_data['1%']), float(img2_data['2%'])]) / 100.0
-
-        weights1 = weights1 / weights1.sum()
-        weights2 = weights2 / weights2.sum()
-
-        dist_matrix = np.zeros((2, 2))
-        for i in range(2):
-            for j in range(2):
-                dist_matrix[i, j] = euclidean(colors1[i], colors2[j])
-
-        row_ind, col_ind = linear_sum_assignment(dist_matrix)
-
-        emd = 0
-        for i, j in zip(row_ind, col_ind):
-            weight = min(weights1[i], weights2[j])
-            emd += weight * dist_matrix[i, j]
-
-        return emd
-
-    except Exception as e:
-        print(f"Error: {img1_data['label']} vs {img2_data['label']} — {e}")
-        return np.nan
-
-# Calcular matriz de distancias
-print("\nCalculando matriz de distancias...")
-
-n = len(df)
-distance_matrix = np.zeros((n, n))
-
-for i in range(n):
-    for j in range(i + 1, n):
-        dist = emd_distance(df.iloc[i], df.iloc[j])
-        distance_matrix[i, j] = dist
-        distance_matrix[j, i] = dist
-
-    if (i + 1) % 10 == 0 or i == n - 1:
-        print(f"Procesadas {i+1}/{n}...")
-
-# Crear DataFrame con etiquetas
-labels = df['label'].values
-
-distance_df = pd.DataFrame(
-    distance_matrix,
-    index=labels,
-    columns=labels
-)
-
-print("\nMatriz (preview):")
-print(distance_df.iloc[:4, :4])
-
-# Guardar
-out_matrix = BASE + '/colorDistance/color_distance_matrix_emd.csv'
-distance_df.to_csv(out_matrix)
-print(f"\n✓ Matriz guardada: {out_matrix}")
-
-# Visualizaciones
-print("\nGenerando visualizaciones...")
-n_labels = len(labels)
-tick_size = max(3, min(8, int(120 / n_labels)))
-
-fig_size  = max(10, n_labels * 0.35)
-plt.figure(figsize=(fig_size, fig_size * 0.85))
-sns.heatmap(
-    distance_df,
-    cmap='YlOrRd',
-    square=True,
-    cbar_kws={'label': 'EMD Distance'},
-    xticklabels=True,
-    yticklabels=True,
-    annot=False
-)
-plt.title('Color Distance Matrix (EMD)', fontsize=14, pad=20)
-plt.xticks(fontsize=tick_size, rotation=90)
-plt.yticks(fontsize=tick_size, rotation=0)
-plt.tight_layout()
-out_heatmap = BASE + '/colorDistance/distance_heatmap.png'
-plt.savefig(out_heatmap, dpi=300, bbox_inches='tight')
-print(f"✓ Heatmap guardado: {out_heatmap}")
-plt.show()
-
-# Dendrograma
+import numpy as np
+import pandas as pd
+import common
+import matplotlib
+if not common.show_plots():
+    matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy.cluster.hierarchy import dendrogram, linkage
-from scipy.spatial.distance import squareform
+from scipy.optimize import linprog
+from scipy.spatial.distance import cdist, squareform
 
-fig_w = max(14, n_labels * 0.4)
-plt.figure(figsize=(fig_w, 6))
+LINKAGE_METHOD = common.param("LINKAGE_METHOD", "ward")   # como en tu versión; 'average' = UPGMA
 
-# squareform convierte la matriz cuadrada → vector condensado (triángulo superior)
-# que es lo que linkage espera cuando los datos ya son distancias
-condensed = squareform(distance_matrix)
-linkage_matrix = linkage(condensed, method='average')
-dendrogram(
-    linkage_matrix,
-    labels=labels,
-    leaf_rotation=90,
-    leaf_font_size=tick_size
-)
-plt.title('Hierarchical Clustering by Color (EMD)', fontsize=14, pad=20)
-plt.xlabel('Genotipo', fontsize=12)
-plt.ylabel('Distancia EMD', fontsize=12)
-plt.tight_layout()
-out_dendro = BASE + '/colorDistance/dendrogram.png'
-plt.savefig(out_dendro, dpi=300, bbox_inches='tight')
-print(f"✓ Dendrograma guardado: {out_dendro}")
-plt.show()
 
-# Estadísticas de distancias
-upper = distance_matrix[np.triu_indices(n, k=1)]
+# ── Firmas de color ──────────────────────────────────────────────────────────
 
-print("\n" + "="*50)
-print("Estadísticas de distancias:")
-print("="*50)
-print(f"Comparaciones totales : {len(upper)}")
-print(f"Distancia mínima      : {upper.min():.2f}")
-print(f"Distancia máxima      : {upper.max():.2f}")
-print(f"Distancia promedio    : {upper.mean():.2f}")
-print(f"Desviación estándar   : {upper.std():.2f}")
+def parse_rgb(text):
+    """'(188, 177, 33)' → array([188, 177, 33]). Acepta también el formato antiguo
+    '(np.int64(188), ...)' que escribía el 10.0 con NumPy 2."""
+    nums = re.findall(r"\d+", re.sub(r"np\.\w+", "", str(text)))
+    if len(nums) != 3:
+        raise ValueError(f"RGB no válido: {text!r}")
+    return np.array([int(n) for n in nums], dtype=float)
 
-# Pares
-distance_long = []
-for i in range(n):
-    for j in range(i + 1, n):
-        distance_long.append({
-            'Genotipo1' : labels[i],
-            'Genotipo2' : labels[j],
-            'Distance'  : distance_matrix[i, j]
-        })
 
-distance_pairs = pd.DataFrame(distance_long).sort_values('Distance')
+def signature(row):
+    """(colores (n, 3), pesos (n,) que suman 1) de una fila de analisis_colores.csv."""
+    colors, weights, i = [], [], 1
+    while f"RGB{i}" in row.index:
+        rgb = row[f"RGB{i}"]
+        if isinstance(rgb, str) and rgb.strip():
+            pct = row.get(f"%{i}", row.get(f"{i}%"))
+            colors.append(parse_rgb(rgb))
+            weights.append(float(pct))
+        i += 1
+    colors, weights = np.array(colors), np.array(weights)
+    return colors, weights / weights.sum()
 
-print("\n5 pares MÁS SIMILARES:")
-print(distance_pairs.head(5).to_string(index=False))
 
-print("\n5 pares MÁS DIFERENTES:")
-print(distance_pairs.tail(5).to_string(index=False))
+def emd(colors1, w1, colors2, w2):
+    """EMD exacta entre dos firmas con masa total 1 y costo euclídeo en RGB."""
+    cost = cdist(colors1, colors2)
+    n, m = cost.shape
+    if n == 1:                                   # toda la masa de la firma 1 va a cada color de la 2
+        return float(cost[0] @ w2)
+    if m == 1:
+        return float(cost[:, 0] @ w1)
+    if n == 2 and m == 2:                        # un solo grado de libertad: el óptimo está en un extremo
+        lo, hi = max(0.0, w1[0] + w2[0] - 1.0), min(w1[0], w2[0])
+        best = np.inf
+        for x in (lo, hi):                       # x = masa que va del color 1a al 2a
+            flow = np.array([[x, w1[0] - x], [w2[0] - x, w1[1] - w2[0] + x]])
+            best = min(best, float((flow * cost).sum()))
+        return best
+    # caso general: programación lineal (flujos >= 0, filas suman w1, columnas suman w2)
+    a_eq = np.zeros((n + m, n * m))
+    for i in range(n):
+        a_eq[i, i * m:(i + 1) * m] = 1
+    for j in range(m):
+        a_eq[n + j, j::m] = 1
+    res = linprog(cost.ravel(), A_eq=a_eq, b_eq=np.concatenate([w1, w2]),
+                  bounds=(0, None), method="highs")
+    return float(res.fun)
 
-out_pairs = BASE + '/colorDistance/distances_pairwise.csv'
-distance_pairs.to_csv(out_pairs, index=False)
-print(f"\n✓ Pares guardados: {out_pairs}")
 
-print("\n✓ ¡Proceso completado!")
+# ── Programa principal ───────────────────────────────────────────────────────
+
+def main():
+    out = common.path("colorDistance")
+    os.makedirs(out, exist_ok=True)
+
+    df = common.load_samples(("color",))
+    df["label"] = common.make_labels(df)
+    print(f"Muestras: {len(df)}  |  ejemplos de etiqueta: {df['label'].head(4).tolist()}")
+    common.log_params("10.1_colorDistance", dict(distancia="EMD exacta, euclídea en RGB 0-255",
+                                                 LINKAGE_METHOD=LINKAGE_METHOD, muestras=len(df)))
+
+    sigs = [signature(row) for _, row in df.iterrows()]
+    n = len(df)
+    dist = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            dist[i, j] = dist[j, i] = emd(*sigs[i], *sigs[j])
+        if (i + 1) % 25 == 0 or i == n - 1:
+            print(f"  procesadas {i + 1}/{n}")
+
+    labels = df["label"].values
+    dist_df = pd.DataFrame(dist, index=labels, columns=labels)
+    dist_df.to_csv(os.path.join(out, "color_distance_matrix_emd.csv"))
+
+    tick = max(3, min(8, int(120 / n)))
+    plt.figure(figsize=(max(10, n * 0.35), max(10, n * 0.35) * 0.85))
+    sns.heatmap(dist_df, cmap="YlOrRd", square=True, xticklabels=True, yticklabels=True,
+                cbar_kws={"label": "EMD (RGB)"})
+    plt.title("Color Distance Matrix (EMD, RGB)", fontsize=14, pad=20)
+    plt.xticks(fontsize=tick, rotation=90)
+    plt.yticks(fontsize=tick, rotation=0)
+    plt.tight_layout()
+    plt.savefig(os.path.join(out, "color_distance_heatmap.png"), dpi=300, bbox_inches="tight")
+    common.finish_figure(plt)
+
+    if n > 2:
+        plt.figure(figsize=(max(14, n * 0.4), 6))
+        dendrogram(linkage(squareform(dist, checks=False), method=LINKAGE_METHOD),
+                   labels=labels, leaf_rotation=90, leaf_font_size=tick)
+        plt.title("Hierarchical Clustering by Color (EMD)", fontsize=14, pad=20)
+        plt.ylabel("EMD (RGB)")
+        plt.tight_layout()
+        plt.savefig(os.path.join(out, "color_dendrogram.png"), dpi=300, bbox_inches="tight")
+        common.finish_figure(plt)
+
+    pairs = pd.DataFrame([{"Genotipo1": labels[i], "Genotipo2": labels[j], "Distance": dist[i, j]}
+                          for i in range(n) for j in range(i + 1, n)]).sort_values("Distance")
+    pairs.to_csv(os.path.join(out, "color_distances_pairwise.csv"), index=False)
+
+    upper = dist[np.triu_indices(n, k=1)]
+    print(f"Comparaciones: {len(upper)} | mín {upper.min():.2f} | máx {upper.max():.2f} | "
+          f"media {upper.mean():.2f} | sd {upper.std():.2f}")
+    print("Salidas en", out)
+
+
+if __name__ == "__main__":
+    main()

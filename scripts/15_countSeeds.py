@@ -3,11 +3,11 @@ import numpy as np
 import cv2 as cv
 from skimage.feature import peak_local_max
 import pandas as pd
-from datetime import datetime
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+import common
 
 # ── Rutas desde .env ──────────────────────────────────────────────────────────
 RUTA = os.getenv('RUTA')
@@ -18,9 +18,9 @@ INPUT_FOLDER  = os.path.join(RUTA, 'areaInteres')
 OUTPUT_FOLDER = os.path.join(RUTA, 'conteo')
 
 # ── Parámetros de detección ───────────────────────────────────────────────────
-THRESHOLD_VAL  = 125   # Umbral en canal Cr (YCrCb)
-MIN_DISTANCE   = 10    # Distancia mínima entre semillas (px)
-PEAK_THRESHOLD = 0.20  # Fracción del máximo de la distancia transform
+THRESHOLD_VAL  = common.param('THRESHOLD_VAL', 125)   # Umbral en canal Cr (YCrCb)
+MIN_DISTANCE   = common.param('MIN_DISTANCE', 10)    # Distancia mínima entre semillas (px)
+PEAK_THRESHOLD = common.param('PEAK_THRESHOLD', 0.20)  # Fracción del máximo de la distancia transform
 
 
 # ── Funciones ─────────────────────────────────────────────────────────────────
@@ -97,8 +97,7 @@ def process_folder():
 
     # Reporte CSV
     df  = pd.DataFrame(rows)
-    ts  = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv = os.path.join(OUTPUT_FOLDER, f"reporte_{ts}.csv")
+    csv = os.path.join(OUTPUT_FOLDER, "reporte_conteo.csv")
     df.to_csv(csv, index=False)
 
     print(f"\n✅ Listo! Reporte: {csv}")
