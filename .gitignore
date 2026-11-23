@@ -43,3 +43,7 @@ sample_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Datos de prueba versionados
+!test/
+!test/**
