@@ -20,6 +20,47 @@ BLUR_SIGMA      = common.param('BLUR_SIGMA', 1.9)
 CLEAN_MIN_AREA  = common.param('CLEAN_MIN_AREA', 500)  # px²: blobs menores se borran antes de medir
 CLOSE_ITER      = common.param('CLOSE_ITER', 3)        # cierre morfológico (elipse 3x3)
 FILTERS         = common.object_filters()              # AREA/ANCHO/LARGO min-max (px)
+HARALICK_NIVELES = common.param('HARALICK_NIVELES', 32)  # niveles de gris de la GLCM (como pliman)
+
+
+def haralick_objeto(gray_img, contorno, niveles=HARALICK_NIVELES):
+    """Textura de un objeto usando SOLO sus píxeles (el fondo no entra).
+    Mismo procedimiento que EBImage/pliman: matriz de co-ocurrencia de pares de píxeles
+    vecinos que están ambos dentro del objeto, distancia 1 en 4 direcciones (0, 45, 90 y
+    135 grados), simétrica y normalizada; gris cuantizado a `niveles` (floor(g/255*(n-1))).
+    Devuelve ASM, contraste, correlación, disimilitud, homogeneidad, energía y entropía
+    (logaritmo natural, igual que antes con scikit-image)."""
+    x, y, bw, bh = cv2.boundingRect(contorno)
+    dentro = np.zeros((bh, bw), np.uint8)
+    cv2.drawContours(dentro, [contorno - [x, y]], -1, 1, -1)
+    dentro = dentro.astype(bool)
+    q = np.floor(gray_img[y:y + bh, x:x + bw].astype(np.float64) / 255.0 * (niveles - 1)).astype(np.int64)
+    P = np.zeros((niveles, niveles))
+    for dx, dy in ((1, 0), (0, 1), (1, 1), (-1, 1)):
+        x0, x1 = (0, bw - dx) if dx >= 0 else (-dx, bw)
+        y1 = bh - dy
+        if x1 <= x0 or y1 <= 0:
+            continue
+        ok = dentro[0:y1, x0:x1] & dentro[dy:y1 + dy, x0 + dx:x1 + dx]
+        a = q[0:y1, x0:x1][ok]
+        b = q[dy:y1 + dy, x0 + dx:x1 + dx][ok]
+        np.add.at(P, (a, b), 1)
+        np.add.at(P, (b, a), 1)
+    total = P.sum()
+    if total == 0:
+        return {k: np.nan for k in ("ASM", "Contrast", "Correlation", "Variance", "IDM", "Energy", "Entropy")}
+    P /= total
+    glcm = P[:, :, None, None]
+    nz = P[P > 0]
+    return {
+        "ASM": graycoprops(glcm, 'ASM')[0, 0],
+        "Contrast": graycoprops(glcm, 'contrast')[0, 0],
+        "Correlation": graycoprops(glcm, 'correlation')[0, 0],
+        "Variance": graycoprops(glcm, 'dissimilarity')[0, 0],   # columna histórica "Variance" = disimilitud
+        "IDM": graycoprops(glcm, 'homogeneity')[0, 0],          # columna histórica "IDM" = homogeneidad
+        "Energy": graycoprops(glcm, 'energy')[0, 0],
+        "Entropy": float(-(nz * np.log(nz)).sum()),
+    }
 
 # Función para aumentar contraste
 def mejorar_contraste(imagen, alpha=1.1, beta=0):
@@ -61,6 +102,7 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
     contornos, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     imagen_contornos = imagen_original.copy()
     metricas_adicionales = []
+    gray_img = cv2.cvtColor(imagen_original, cv2.COLOR_RGB2GRAY) if imagen_original.ndim > 2 else imagen_original
 
     for i, contorno in enumerate(contornos):
         # Filtro de area
@@ -111,38 +153,23 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
         diam_max = h
         radius_ratio = radio_max/radio_min
         theta = (180/np.pi)*(np.radians(angulo))
-        circularity = min(1.0, (4 * np.pi * area) / (perimetro**2)) if perimetro > 0 else 0
-        form_factor = circularity   # misma fórmula que Circ (se conserva la columna por compatibilidad)
+        # Definiciones de pliman (analyze_objects): circularity = P²/A ; form_factor = circularity_norm = 4πA/P²
+        circularity = (perimetro**2) / area if area > 0 else 0
+        form_factor = (4 * np.pi * area) / (perimetro**2) if perimetro > 0 else 0
         narrow_factor = caliper / h
         rectangularity = (h * w) / area if area > 0 else 0
         pd_ratio = perimetro / caliper if caliper > 0 else 0
         plw_ratio = perimetro / (h + w) if (h + w) > 0 else 0
         convexity = min(1.0, perimetro_hull / perimetro) if perimetro > 0 else 0
         solidez = area / area_ch if area_ch > 0 else 0
-        circularity_norm = (perimetro**2) / (4 * np.pi * area) if area > 0 else 0
+        circularity_norm = (4 * np.pi * area) / (perimetro**2) if perimetro > 0 else 0   # 0-1; 1 = círculo
         # Haralick circularity (distancia media al centroide)
         distancias = [distance.euclidean((cx, cy), point[0]) for point in contorno]
         circularity_haralick = np.mean(distancias) / np.std(distancias) if np.std(distancias) > 0 else 0
         elongation = 1 - (w / h) if h > 0 else 0
-        # Características de textura Haralick (requiere imagen en escala de grises)
-        if len(imagen_original.shape) > 2:
-            gray_img = cv2.cvtColor(imagen_original, cv2.COLOR_BGR2GRAY)
-        # Crear máscara para el objeto actual
-        mask = np.zeros_like(gray_img)
-        cv2.drawContours(mask, [contorno], -1, 255, -1)
-        #cv2.drawContours(mask, [rect], -1, 255, -1)
-        # Extraer región de interés
-        roi = cv2.bitwise_and(gray_img, gray_img, mask=mask)
-        # Calcular GLCM y características Haralick
-        glcm = graycomatrix(roi, distances=[1], angles=[0], levels=256, symmetric=True, normed=True)
-        asm = graycoprops(glcm, 'ASM')[0, 0]
-        con = graycoprops(glcm, 'contrast')[0, 0]
-        cor = graycoprops(glcm, 'correlation')[0, 0]
-        var = graycoprops(glcm, 'dissimilarity')[0, 0]
-        idm = graycoprops(glcm, 'homogeneity')[0, 0]
-        sav = graycoprops(glcm, 'energy')[0, 0]
-        entropy = graycoprops(glcm, 'entropy')[0, 0]
-    
+        # Textura Haralick solo con los píxeles del objeto (sin fondo)
+        har = haralick_objeto(gray_img, contorno)
+
         metricas = {
             "Imagen": eliminar_extension_imagen(nombre_imagen),
             "Total_seeds": len(contornos),
@@ -178,13 +205,13 @@ def procesar_imagen_binarizada(binary_img, nombre_imagen, imagen_original, escri
             "Elongation": elongation,
             "Circ_haralick": circularity_haralick,
             "Circ_norm": circularity_norm,
-            "ASM": asm,
-            "Contrast": con,
-            "Correlation": cor,
-            "Variance": var,
-            "IDM": idm,
-            "Energy": sav,
-            "Entropy": entropy
+            "ASM": har["ASM"],
+            "Contrast": har["Contrast"],
+            "Correlation": har["Correlation"],
+            "Variance": har["Variance"],
+            "IDM": har["IDM"],
+            "Energy": har["Energy"],
+            "Entropy": har["Entropy"]
         }
         metricas_adicionales.append(metricas)
 
@@ -228,6 +255,7 @@ def main():
     common.log_params('08_morphometricAnalysis', dict(
         THRESHOLD=THRESHOLD, CONTRAST_ALPHA=CONTRAST_ALPHA, CONTRAST_BETA=CONTRAST_BETA,
         BLUR_SIGMA=BLUR_SIGMA, CLEAN_MIN_AREA=CLEAN_MIN_AREA, CLOSE_ITER=CLOSE_ITER,
+        HARALICK_NIVELES=HARALICK_NIVELES,
         factor_escala_mm_px=factor_escala, **FILTERS))
 
     # Ruta del CSV en carpeta Results
